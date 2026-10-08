@@ -1,0 +1,19 @@
+{
+  // Shared compiler settings for every app package (api, functions, shared, graphql, web, e2e).
+  // Each package's tsconfig.json "extends" this file and only adds what it needs.
+  // infra/ and bootstrap/ do NOT use it: Pulumi compiles them itself with TypeScript 5.x.
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2023",
+    // "preserve" + "bundler": we never emit JS with tsc. esbuild, tsx, Vitest and Next.js
+    // compile the code, so imports can be written without ".js" extensions.
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

@@ -33,8 +33,8 @@ git remote add origin https://github.com/maheshnd/ticketlite.git && git push -u 
 It creates the GitHub OIDC provider plus two IAM roles: `preview` (read-only, PRs) and `deploy` (admin, main only).
 
 ```bash
+pnpm install                                  # at the repo root: one install for the whole workspace
 cd bootstrap
-pnpm install
 pulumi stack select dev                       # the stack already exists in Pulumi Cloud
 AWS_PROFILE=ticketlite pulumi preview         # expect: + 6 to create
 AWS_PROFILE=ticketlite pulumi up              # review, then choose "yes"
@@ -84,7 +84,7 @@ The PR gets a comment with the `pulumi preview` output. Merging it runs the depl
 
 ## Day to day
 - Change code → open a PR → read the preview comment → merge → CI deploys.
-- Locally you may only run `AWS_PROFILE=ticketlite pulumi preview` (run `pnpm build` in `api/` first).
+- Locally you may only run `AWS_PROFILE=ticketlite pulumi preview` (run `pnpm build` at the repo root first).
 - Done studying for a while? **Actions → destroy → Run workflow**, type `destroy`. Run **deploy** manually to bring everything back.
 
 ## If something fails

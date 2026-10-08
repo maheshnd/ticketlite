@@ -1,7 +1,7 @@
 import Fastify from "fastify";
-import { healthRoutes } from "./routes/health.js";
-import { eventsRoutes } from "./routes/events.js";
-import { copyInfoRoutes } from "./routes/copy-info.js";
+import { healthRoutes } from "./routes/health";
+import { eventsRoutes } from "./routes/events";
+import { copyInfoRoutes } from "./routes/copy-info";
 
 // Builds the Fastify app but does NOT start a server.
 // Two entry points share it: local.ts listens on a port, and lambda.ts hands it to Lambda.

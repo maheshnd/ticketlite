@@ -1,5 +1,5 @@
 import { awsLambdaFastify } from "@fastify/aws-lambda";
-import { buildApp } from "./app.js";
+import { buildApp } from "./app";
 
 // Step 1: build the app OUTSIDE the handler.
 // Code at module level runs once per cold start (during Lambda's "init" phase).

@@ -1,15 +1,16 @@
 {
-    "name": "ticketlite-infra",
-    "main": "index.ts",
-    "scripts": {
-        "typecheck": "tsc --noEmit"
-    },
-    "devDependencies": {
-        "@types/node": "^24.19.1",
-        "typescript": "^5.0.0"
-    },
-    "dependencies": {
-        "@pulumi/aws": "^7.0.0",
-        "@pulumi/pulumi": "^3.113.0"
-    }
+  "name": "@ticketlite/infra",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@pulumi/aws": "^7.50.0",
+    "@pulumi/pulumi": "^3.268.0"
+  },
+  "private": true
 }

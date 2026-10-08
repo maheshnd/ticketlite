@@ -1,15 +1,16 @@
 {
-    "name": "ticketlite-bootstrap",
-    "main": "index.ts",
-    "scripts": {
-        "typecheck": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@pulumi/aws": "^7.50.0",
-        "@pulumi/pulumi": "^3.268.0"
-    },
-    "devDependencies": {
-        "@types/node": "^24.19.1",
-        "typescript": "~5.9.3"
-    }
+  "name": "@ticketlite/bootstrap",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pulumi/aws": "^7.50.0",
+    "@pulumi/pulumi": "^3.268.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "~5.9.3"
+  },
+  "private": true
 }

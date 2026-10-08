@@ -1,19 +1,19 @@
 {
-  "name": "ticketlite-api",
+  "name": "@ticketlite/api",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/local.ts",
     "build": "node build.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@fastify/aws-lambda": "^6.4.1",
+    "@ticketlite/shared": "workspace:*",
     "fastify": "^5.12.5"
   },
   "devDependencies": {
-    "@types/node": "^24.19.1",
-    "esbuild": "^0.28.2",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "esbuild": "^0.28.2"
   }
 }

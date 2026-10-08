@@ -1,0 +1,17 @@
+# One pnpm workspace for the whole repo: one lockfile, one `pnpm install` at the root.
+# Each folder below is its own package with its own package.json and scripts.
+packages:
+  - packages/*
+  - api
+  - functions
+  - graphql
+  - web
+  - e2e
+  - infra
+  - bootstrap
+
+# pnpm blocks dependency install scripts by default (supply-chain safety).
+# Only the scripts listed as true may run.
+allowBuilds:
+  esbuild: true # only checks that its native binary is in place
+  protobufjs: false # an unneeded script pulled in by @pulumi/pulumi (https://github.com/protobufjs/protobuf.js/pull/2299)

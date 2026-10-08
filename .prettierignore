@@ -1,0 +1,12 @@
+pnpm-lock.yaml
+**/dist
+**/out
+**/.next
+**/coverage
+**/node_modules
+graphql/generated
+web/src/gql
+BUILD-SPEC.md
+notes
+# Markdown docs are hand-formatted (wide tables read better unwrapped).
+*.md

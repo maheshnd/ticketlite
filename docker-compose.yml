@@ -1,0 +1,28 @@
+# Local stand-ins for the AWS services that have a Docker image, so `pnpm --filter @ticketlite/api dev`
+# never needs AWS. Start: `docker compose up -d`. Stop and delete the data: `docker compose down -v`.
+#   Redis          -> stands in for Upstash Redis (cache + rate limit)
+#   OpenSearch     -> stands in for the managed OpenSearch domain (search)
+#   DynamoDB Local -> stands in for the DynamoDB tables (create them with `pnpm tsx scripts/create-local-tables.ts`)
+# Cognito and Step Functions have no local image: use the deployed dev stack, or the web app's MSW mock mode.
+services:
+  redis:
+    image: redis:8.8.3
+    ports: ["6379:6379"]
+
+  opensearch:
+    image: opensearchproject/opensearch:3.9.0
+    environment:
+      # One node, no cluster discovery: enough for local development.
+      - discovery.type=single-node
+      # Turns off TLS + login locally. The cloud domain uses HTTPS and IAM (SigV4) instead.
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # Cap the JVM heap so it fits on a laptop.
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports: ["9200:9200"]
+
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1
+    # -inMemory: data disappears on restart, which keeps local runs repeatable. -sharedDb: one database for any region/credentials.
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb"
+    ports: ["8000:8000"]

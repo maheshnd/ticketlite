@@ -1,15 +1,7 @@
 {
   // Used only for type checking (`pnpm typecheck`).
-  // esbuild (build) and tsx (dev) strip types themselves and never call tsc.
-  "compilerOptions": {
-    "strict": true,
-    "target": "es2023",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
-  },
-  "include": ["src"]
+  // esbuild (build), tsx (dev) and Vitest (test) strip types themselves and never call tsc.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src", "test"]
 }

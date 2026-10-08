@@ -1,4 +1,4 @@
-import { buildApp } from "./app.js";
+import { buildApp } from "./app";
 
 // Local development only: run the same app as a normal HTTP server.
 // `pnpm dev` runs this with tsx watch, which restarts it whenever a file changes.
