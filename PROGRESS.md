@@ -11,7 +11,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | ✅ done — `pulumi preview`: 53 to create; 52 tests |
 | M3 | Booking saga, idempotency, admin CRUD, poster upload | ✅ done — `pulumi preview`: 99 to create; ASL validated by AWS; 85 tests |
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | ✅ done — `pulumi preview`: 125 to create; all 9 resolvers pass `aws appsync evaluate-code`; 93 tests |
-| M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | todo |
+| M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | ✅ done — `pulumi preview`: 147 to create (157 with search + cache on); search, analyzer and cache checked against local OpenSearch 3.7 + Redis; 109 tests |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | todo |
 | M7 | Playwright + axe, all docs, final pass | todo |
 
@@ -53,12 +53,21 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 32. **The AppSync API key is exported unsecret** (`pulumi.unsecret`): it is public by design (shipped in the web JS). Its `expires` is set once (~360 days) and ignored afterwards.
 33. **MSW 3**: GraphQL mocks moved to `msw/graphql` and need `graphql.link(url)`; WebSocket mocks (`ws.link`) let the tests run the real AppSync real-time client.
 34. **The saga publishes live updates best-effort** (Confirm and ReleaseSeat read the new seat count, then call `publishSeatUpdate` with SigV4; failures only log a warning).
+35. **OpenSearch 3.7 on one `t3.small.search`** (verified with `aws opensearch list-instance-type-details`: encryption at rest supported). The domain's access policy delegates to IAM (account principal); Lambda roles get `es:ESHttp*`. Local Docker uses the same 3.7.0.
+36. **The search indexer, its stream mapping and failure queue exist only with `enableSearch`** (no domain, nothing to index). `/api/search` falls back to DynamoDB and says so (`source`).
+37. **`PublishSoldOut`**: the sold-out path (MarkFailed) also emits `BookingFailed`, via a direct Step Functions → EventBridge integration (no Lambda).
+38. **EventCreated has no consumer yet** (published for future subscribers). Publishing it is best effort in the API.
+39. **Redis cache TTL is 10 s** (seat counts change with every booking; live updates come from AppSync). The rate limiter fails open and is skipped with the cache flag off (API Gateway's per-route throttle still applies).
+40. **Payment signing secret**: created empty; until the owner sets its value, payments run "unsigned" with a warning log (so the first deploy works).
+41. **Email recipient**: SES sandbox → every confirmation goes to the verified `sesEmail`, not the booking user's email.
+42. **docker-compose Redis host port is configurable** (`REDIS_PORT`), because 6379 was taken on the dev machine.
+43. **`scripts/index-local-search.ts`** backfills the local OpenSearch from DynamoDB Local (local dev only).
 
 ## Open questions
 
-- None yet. (Untested until the first deploy: real Cognito login, managed-login PKCE redirect, CloudFront routing. The unit tests mock these.)
+- None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins).
 
 ## Next steps
 
-- M5: `events.ts` (EventBridge bus `ticketlite`, rules → SQS email-queue + DLQ → email-worker (SES), SNS admin-notifications), saga publishes BookingConfirmed/BookingFailed, admin create publishes EventCreated, Events stream → search-indexer (bisect, retries, on-failure), `search.ts` (flag) + mapping/analyzer + `/api/search` with DynamoDB fallback + search page, Redis cache-aside + stampede lock + invalidation + sliding-window rate limit (flag, no-op cache otherwise), `secrets.ts`, CloudFront 30s cache policy for `/api/events`.
+- M6: Powertools Metrics (BookingsStarted/Confirmed/Failed, PaymentFailures) + correlationId everywhere, `observability.ts` (alarms → SNS `alarms`, dashboard), `waf.ts` (flag), `partner-api.ts` (REST API + API key + usage plan/quota → api alias), optional SQL (`sql.ts`, `sql-reporter` with Drizzle + Data API, `/api/admin/reports`, reports page), docs/SECURITY.md.
 - Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.

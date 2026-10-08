@@ -6,3 +6,4 @@ export * from "./auth";
 export * from "./organizer";
 export * from "./booking";
 export * from "./poster";
+export * from "./search";

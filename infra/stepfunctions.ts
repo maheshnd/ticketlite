@@ -8,7 +8,9 @@ import * as pulumi from "@pulumi/pulumi";
 import { graphqlUrl, publishSeatUpdateArn } from "./appsync";
 import { paymentFailureRate, stage } from "./config";
 import { bookingsTable, eventsTable } from "./dynamodb";
+import { eventBus } from "./events";
 import { createNodeFunction } from "./node-function";
+import { paymentSecret } from "./secrets";
 
 // Step 1: the saga Lambdas. Each gets only the table actions it uses (TransactWriteItems needs UpdateItem).
 const tables = { EVENTS_TABLE: eventsTable.name, BOOKINGS_TABLE: bookingsTable.name };
@@ -21,21 +23,24 @@ const reserveSeat = createNodeFunction("booking-reserve-seat", {
 });
 const processPayment = createNodeFunction("booking-process-payment", {
   codeDir: "../functions/booking-process-payment/dist",
-  environment: { PAYMENT_FAILURE_RATE: String(paymentFailureRate) },
+  environment: { PAYMENT_FAILURE_RATE: String(paymentFailureRate), PAYMENT_SECRET_ARN: paymentSecret.arn },
+  statements: [{ Action: ["secretsmanager:GetSecretValue"], Resource: [paymentSecret.arn] }],
 });
 // Confirm and ReleaseSeat also read the new seat count and publish it to AppSync (IAM: only that mutation).
+// Both also publish a domain event (BookingConfirmed / BookingFailed) to the EventBridge bus.
 const liveUpdate = [
   { Action: ["dynamodb:GetItem"], Resource: [eventsTable.arn] },
   { Action: ["appsync:GraphQL"], Resource: [publishSeatUpdateArn] },
+  { Action: ["events:PutEvents"], Resource: [eventBus.arn] },
 ];
 const confirm = createNodeFunction("booking-confirm", {
   codeDir: "../functions/booking-confirm/dist",
-  environment: { ...tables, APPSYNC_URL: graphqlUrl },
+  environment: { ...tables, APPSYNC_URL: graphqlUrl, EVENT_BUS_NAME: eventBus.name },
   statements: [{ Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] }, ...liveUpdate],
 });
 const releaseSeat = createNodeFunction("booking-release-seat", {
   codeDir: "../functions/booking-release-seat/dist",
-  environment: { ...tables, APPSYNC_URL: graphqlUrl },
+  environment: { ...tables, APPSYNC_URL: graphqlUrl, EVENT_BUS_NAME: eventBus.name },
   statements: [...updateBoth, ...liveUpdate],
 });
 const sagaFunctions = [reserveSeat, processPayment, confirm, releaseSeat];
@@ -52,6 +57,7 @@ new aws.iam.RolePolicy("booking-saga-policy", {
     Statement: [
       { Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: sagaFunctions.map((f) => f.fn.arn) },
       { Effect: "Allow", Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] },
+      { Effect: "Allow", Action: ["events:PutEvents"], Resource: [eventBus.arn] }, // the PublishSoldOut state
       {
         Effect: "Allow",
         Action: [
@@ -84,14 +90,22 @@ new aws.iam.RolePolicy("booking-saga-policy", {
 // Step 3: fill the placeholders in the ASL file with real ARNs and names.
 const template = fs.readFileSync(path.join(__dirname, "booking-state-machine.asl.json"), "utf8");
 const definition = pulumi
-  .all([reserveSeat.fn.arn, processPayment.fn.arn, confirm.fn.arn, releaseSeat.fn.arn, bookingsTable.name])
-  .apply(([reserve, pay, conf, release, table]) =>
+  .all([
+    reserveSeat.fn.arn,
+    processPayment.fn.arn,
+    confirm.fn.arn,
+    releaseSeat.fn.arn,
+    bookingsTable.name,
+    eventBus.name,
+  ])
+  .apply(([reserve, pay, conf, release, table, bus]) =>
     template
       .replaceAll("${ReserveSeatArn}", reserve)
       .replaceAll("${ProcessPaymentArn}", pay)
       .replaceAll("${ConfirmArn}", conf)
       .replaceAll("${ReleaseSeatArn}", release)
-      .replaceAll("${BookingsTable}", table),
+      .replaceAll("${BookingsTable}", table)
+      .replaceAll("${EventBusName}", bus),
   );
 
 // Step 4: the state machine. ERROR-level logs (failed states only) keep log costs near zero.

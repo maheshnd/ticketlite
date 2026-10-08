@@ -5,6 +5,7 @@ import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, tableName } from "../shared/dynamodb";
 import { logger } from "../shared/powertools";
 import { publishSeatUpdate } from "../shared/appsync";
+import { publishEvent } from "../shared/eventbridge";
 import { getAvailableSeats } from "../shared/events-table";
 import type { SagaInput } from "../shared/saga";
 
@@ -55,8 +56,21 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
   }
 
   logger.info("seats released", { reason });
+
+  const { bookingId, eventId, userId, eventName, seats, amount, correlationId } = input;
+  await publishEvent("BookingFailed", {
+    bookingId,
+    eventId,
+    userId,
+    eventName,
+    seats,
+    amount,
+    reason,
+    correlationId,
+  });
+
   // Live update for everyone watching this event (AppSync subscription, M4).
-  const seats = await getAvailableSeats(input.eventId);
-  if (seats !== undefined) await publishSeatUpdate(input.eventId, seats);
+  const availableSeats = await getAvailableSeats(input.eventId);
+  if (availableSeats !== undefined) await publishSeatUpdate(input.eventId, availableSeats);
   return input;
 };

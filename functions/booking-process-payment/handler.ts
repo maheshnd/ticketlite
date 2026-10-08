@@ -3,7 +3,8 @@
 //   - PAYMENT_FAILURE_RATE (0..1) makes the provider randomly "unavailable": a TRANSIENT error that the
 //     state machine retries with exponential backoff.
 // CONCEPT: saga, retries-backoff, circuit-breaker
-import { randomUUID } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import { logger } from "../shared/powertools";
 import { SagaError, type SagaInput } from "../shared/saga";
 import { CircuitBreaker } from "./circuit-breaker";
@@ -13,11 +14,30 @@ const failureRate = Number(process.env.PAYMENT_FAILURE_RATE ?? "0");
 // Module level: one breaker per Lambda copy, kept between invocations (see circuit-breaker.ts).
 const breaker = new CircuitBreaker(3, 30_000);
 
-// The fake provider. A real one would take bookingId as ITS idempotency key, so our retries can never
-// charge the card twice.
+// The provider's signing secret lives in Secrets Manager, never in code or env vars. Powertools Parameters
+// caches it in memory for 5 minutes, so warm invocations don't call Secrets Manager every time.
+// CONCEPT: secrets-management
+async function signingSecret(): Promise<string | undefined> {
+  const arn = process.env.PAYMENT_SECRET_ARN;
+  if (!arn) return undefined;
+  try {
+    return await getSecret<string>(arn, { maxAge: 300 });
+  } catch (error) {
+    // The owner sets the value by hand after the first deploy (docs/CICD-SETUP.md). Until then: unsigned.
+    logger.warn("payment signing secret not readable; charging unsigned (demo)", { error: error as Error });
+    return undefined;
+  }
+}
+
+// The fake provider. Real providers verify an HMAC signature of the request, and take bookingId as THEIR
+// idempotency key, so our retries can never charge the card twice.
 async function chargeCard(input: SagaInput): Promise<string> {
   if (Math.random() < failureRate) throw new SagaError("PaymentProviderUnavailable", "Provider timed out.");
-  return `pay_${input.bookingId}_${randomUUID().slice(0, 8)}`;
+  const secret = await signingSecret();
+  const signature = secret
+    ? createHmac("sha256", secret).update(`${input.bookingId}:${input.amount}`).digest("hex").slice(0, 12)
+    : "unsigned";
+  return `pay_${input.bookingId}_${signature}`;
 }
 
 export const handler = async (input: SagaInput): Promise<SagaInput> => {

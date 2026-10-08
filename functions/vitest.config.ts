@@ -9,6 +9,7 @@ export default defineConfig({
       EVENTS_TABLE: "Events",
       BOOKINGS_TABLE: "Bookings",
       ORGANIZERS_TABLE: "Organizers",
+      SES_EMAIL: "test@ticketlite.dev",
     },
   },
 });

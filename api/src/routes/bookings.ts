@@ -13,6 +13,7 @@ import { z } from "zod";
 import { currentUser, requireUser } from "../plugins/auth-context";
 import { createBooking, getMyBooking, listMyBookings } from "../services/bookings-service";
 import { withIdempotency } from "../services/idempotency-service";
+import { checkBookingRateLimit } from "../services/rate-limit-service";
 import type { App } from "../types";
 
 // The client generates one random key per "Book" click and reuses it for retries of that click.
@@ -33,14 +34,15 @@ export function bookingRoutes(app: App) {
     },
     async (request, reply) => {
       const user = currentUser(request);
+      // Rate limit INSIDE the idempotent work: a retry that replays a stored response costs nothing.
       const result = await withIdempotency(
         user.userId,
         request.headers["idempotency-key"],
         request.body,
-        async () => ({
-          status: 202,
-          body: await createBooking(user.userId, request.body, request.id),
-        }),
+        async () => {
+          await checkBookingRateLimit(user.userId);
+          return { status: 202, body: await createBooking(user.userId, request.body, request.id) };
+        },
       );
 
       // 202 = "accepted, not finished". Location tells the client where to poll. CONCEPT: http-semantics

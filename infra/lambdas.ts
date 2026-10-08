@@ -12,7 +12,10 @@ import {
   sessionsTable,
   tableResources,
 } from "./dynamodb";
+import { eventBus } from "./events";
 import { createNodeFunction } from "./node-function";
+import { search } from "./search";
+import { redisSecret } from "./secrets";
 import { bookingStateMachine } from "./stepfunctions";
 import { postersBucket } from "./storage";
 
@@ -35,6 +38,11 @@ export const api = createNodeFunction("api", {
     IDEMPOTENCY_TABLE: idempotencyTable.name,
     BOOKING_STATE_MACHINE_ARN: bookingStateMachine.arn,
     POSTERS_BUCKET: postersBucket.bucket,
+    EVENT_BUS_NAME: eventBus.name,
+    // Flags: when off, the API falls back (no-op cache, DynamoDB search) instead of failing.
+    CACHE_ENABLED: String(flags.enableCache),
+    ...(redisSecret ? { REDIS_SECRET_ARN: redisSecret.arn } : {}),
+    ...(search ? { OPENSEARCH_ENDPOINT: search.endpoint } : {}),
     USER_POOL_ID: userPool.id,
     USER_POOL_CLIENT_ID: userPoolClient.id,
     COGNITO_DOMAIN_URL: cognitoDomainUrl,

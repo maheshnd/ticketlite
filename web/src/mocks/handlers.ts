@@ -79,6 +79,23 @@ export const handlers = [
     return HttpResponse.json({ items, nextCursor: next });
   }),
 
+  // Search: case-insensitive word match + a city aggregation, like the API's DynamoDB fallback.
+  http.get("*/api/search", ({ request }) => {
+    const url = new URL(request.url);
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    const city = url.searchParams.get("city");
+    const matching = mockEvents.filter((e) => e.name.toLowerCase().includes(q));
+    const counts = new Map<string, number>();
+    for (const e of matching) counts.set(e.city, (counts.get(e.city) ?? 0) + 1);
+    const items = matching.filter((e) => !city || e.city === city);
+    return HttpResponse.json({
+      items,
+      total: items.length,
+      cities: [...counts].map(([c, count]) => ({ city: c, count })),
+      source: "dynamodb-fallback",
+    });
+  }),
+
   http.get("*/api/events/:id", ({ params }) => {
     const event = mockEvents.find((e) => e.eventId === params.id);
     return event ? HttpResponse.json(event) : problem(404, "Not Found", `Event ${params.id} does not exist.`);

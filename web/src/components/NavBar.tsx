@@ -12,6 +12,9 @@ export function NavBar() {
       <Link href="/" className="text-lg font-bold text-indigo-700">
         TicketLite
       </Link>
+      <Link href="/search" className="text-slate-700 underline">
+        Search
+      </Link>
       <div className="ml-auto flex items-center gap-4">
         {isAdmin && (
           <Link href="/admin/events" className="text-slate-700 underline">

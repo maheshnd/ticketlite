@@ -4,6 +4,7 @@ export type SagaInput = {
   bookingId: string;
   eventId: string;
   userId: string;
+  eventName: string; // for the confirmation email (copied from the booking)
   seats: number;
   amount: number;
   correlationId: string; // the API request's id, so one search finds API + saga logs. CONCEPT: correlation-id

@@ -19,6 +19,7 @@ import { demoSessionRoutes } from "./routes/demo-session";
 import { bookingRoutes } from "./routes/bookings";
 import { adminEventRoutes } from "./routes/admin-events";
 import { adminUploadRoutes } from "./routes/admin-uploads";
+import { searchRoutes } from "./routes/search";
 
 export async function buildApp() {
   // Step 1: the Fastify instance. Logs are JSON lines (CloudWatch Logs Insights can query any field),
@@ -57,6 +58,7 @@ export async function buildApp() {
       bookingRoutes(api);
       adminEventRoutes(api);
       adminUploadRoutes(api);
+      searchRoutes(api);
     },
     { prefix: "/api" },
   );

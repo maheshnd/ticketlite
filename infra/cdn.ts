@@ -41,7 +41,23 @@ const securityHeaders = new aws.cloudfront.ResponseHeadersPolicy("security-heade
   },
 });
 
-// Step 4: the distribution.
+// Step 4: a short cache for the PUBLIC events list. Every visitor sees the same list, so CloudFront can
+// answer most requests itself for 30 seconds; the cache key includes the query string (?city=&cursor=),
+// never headers or cookies, so it can't mix up users. Authenticated routes stay uncached. CONCEPT: cdn
+const eventsListCache = new aws.cloudfront.CachePolicy("api-events-30s", {
+  minTtl: 0,
+  defaultTtl: 30,
+  maxTtl: 30,
+  parametersInCacheKeyAndForwardedToOrigin: {
+    queryStringsConfig: { queryStringBehavior: "all" },
+    headersConfig: { headerBehavior: "none" },
+    cookiesConfig: { cookieBehavior: "none" },
+    enableAcceptEncodingGzip: true,
+    enableAcceptEncodingBrotli: true,
+  },
+});
+
+// Step 5: the distribution.
 export const distribution = new aws.cloudfront.Distribution("cdn", {
   enabled: true,
   isIpv6Enabled: true,
@@ -79,6 +95,18 @@ export const distribution = new aws.cloudfront.Distribution("cdn", {
     functionAssociations: [{ eventType: "viewer-request", functionArn: rewrite.arn }],
   },
   orderedCacheBehaviors: [
+    // Behaviors are matched in order: this exact path first, then the /api/* catch-all.
+    {
+      pathPattern: "/api/events",
+      targetOriginId: "api",
+      viewerProtocolPolicy: "https-only",
+      allowedMethods: ["GET", "HEAD", "OPTIONS"],
+      cachedMethods: ["GET", "HEAD"],
+      compress: true,
+      cachePolicyId: eventsListCache.id,
+      originRequestPolicyId: ALL_VIEWER_EXCEPT_HOST,
+      responseHeadersPolicyId: securityHeaders.id,
+    },
     // /api/* goes to API Gateway with every header and cookie (the JWT and the refresh cookie), uncached.
     {
       pathPattern: "/api/*",
@@ -110,7 +138,7 @@ export const distribution = new aws.cloudfront.Distribution("cdn", {
   viewerCertificate: { cloudfrontDefaultCertificate: true }, // *.cloudfront.net; enableCustomDomain adds ACM later
 });
 
-// Step 5: bucket policies: "only this distribution may read". AWS:SourceArn pins it to our distribution,
+// Step 6: bucket policies: "only this distribution may read". AWS:SourceArn pins it to our distribution,
 // so another CloudFront distribution (even in our account) can't read the buckets.
 function allowCloudFront(name: string, bucket: aws.s3.Bucket) {
   new aws.s3.BucketPolicy(`${name}-cloudfront-read`, {

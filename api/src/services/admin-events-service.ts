@@ -3,12 +3,14 @@
 import { randomUUID } from "node:crypto";
 import type { CreateEventInput, Event, UpdateEventInput } from "@ticketlite/shared";
 import { badRequest, conflict, notFound } from "../errors";
+import { publishEvent } from "../lib/eventbridge";
 import {
   getEventById,
   listEventsByStatus,
   putNewEvent,
   updateEventVersioned,
 } from "../repositories/events-repository";
+import { invalidateEvent } from "./event-cache";
 
 export async function createEvent(input: CreateEventInput): Promise<Event> {
   const now = new Date().toISOString();
@@ -21,6 +23,11 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
     updatedAt: now,
   };
   await putNewEvent(event);
+  // Domain event for anyone interested (no consumer yet; see infra/events.ts). Best effort: the event
+  // exists either way, so a failed publish is logged, not returned to the admin as an error.
+  await publishEvent("EventCreated", { eventId: event.eventId, name: event.name, city: event.city }).catch(
+    (error) => console.warn(JSON.stringify({ msg: "EventCreated not published", error: String(error) })),
+  );
   return event;
 }
 
@@ -47,6 +54,7 @@ export async function updateEvent(eventId: string, input: UpdateEventInput): Pro
   const updated = await updateEventVersioned(eventId, version, changes, seatDelta);
   if (!updated)
     throw conflict("Someone else changed this event after you opened it. Reload to see their changes.");
+  await invalidateEvent(eventId); // the cached copy is now wrong. CONCEPT: cache-invalidation
   return updated;
 }
 

@@ -76,6 +76,23 @@ curl "$(pulumi stack output cloudFrontUrl)/api/health"   # {"status":"ok","stage
 open "$(pulumi stack output cloudFrontUrl)"               # the web app
 ```
 
+### After the first deploy (once)
+1. **Confirm two emails** sent to `mahesh.deshmukh.tech@gmail.com`: the SES identity verification and the SNS
+   subscription to `admin-notifications`. Until then SES can't send and SNS won't deliver.
+2. **Seed sample data:** GitHub → Actions → **seed** → Run workflow.
+3. **Set the payment signing secret** (any random string; never commit it):
+   ```bash
+   aws secretsmanager put-secret-value --secret-id "$(pulumi stack output paymentSecretArn)" --secret-string "$(openssl rand -hex 32)"
+   ```
+4. **Make yourself admin:** sign up in the app, then
+   `aws cognito-idp admin-add-user-to-group --user-pool-id "$(pulumi stack output userPoolId)" --username <your email> --group-name admin`
+
+### Optional flags (each costs money; see docs/COSTS.md)
+- `enableCache`: create a free database at upstash.com, set `ticketlite-infra:enableCache: true` in
+  `infra/Pulumi.dev.yaml`, merge, then `aws secretsmanager put-secret-value --secret-id "$(pulumi stack output redisSecretArn)" --secret-string 'rediss://default:<password>@<host>:6379'`.
+- `enableSearch`: set it to `true` and merge (the domain takes ~15-20 min to create). Then backfill existing events
+  by touching them, or re-run the seed workflow (each write flows through the stream into the index).
+
 ### Try the PR flow
 ```bash
 git switch -c test-preview && git commit --allow-empty -m "test preview" && git push -u origin test-preview

@@ -20,6 +20,11 @@ export const adminKeys = {
   event: (eventId: string) => [...adminKeys.events(), eventId] as const,
 };
 
+export const searchKeys = {
+  all: ["search"] as const,
+  query: (q: string, city: string | undefined) => [...searchKeys.all, { q, city: city ?? null }] as const,
+};
+
 export const authKeys = {
   me: ["me"] as const,
 };

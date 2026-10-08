@@ -42,8 +42,8 @@ export async function createBooking(
   // Step 3: start the saga. The correlation id travels with it, so its logs can be found with the API's.
   try {
     // Exactly the fields the steps need (functions/shared/saga.ts), nothing more.
-    const { bookingId, eventId, seats, amount } = booking;
-    const sagaInput = { bookingId, eventId, userId, seats, amount, correlationId };
+    const { bookingId, eventId, eventName, seats, amount } = booking;
+    const sagaInput = { bookingId, eventId, userId, eventName, seats, amount, correlationId };
     const executionArn = await startBookingSaga(booking.bookingId, sagaInput);
     await setExecutionArn(booking.bookingId, executionArn);
   } catch (error) {

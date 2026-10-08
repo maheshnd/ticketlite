@@ -7,10 +7,11 @@
 services:
   redis:
     image: redis:8.8.3
-    ports: ["6379:6379"]
+    # Host port is configurable in case 6379 is taken: REDIS_PORT=6380 docker compose up -d
+    ports: ["${REDIS_PORT:-6379}:6379"]
 
   opensearch:
-    image: opensearchproject/opensearch:3.9.0
+    image: opensearchproject/opensearch:3.7.0 # the same version as the AWS domain (infra/search.ts)
     environment:
       # One node, no cluster discovery: enough for local development.
       - discovery.type=single-node

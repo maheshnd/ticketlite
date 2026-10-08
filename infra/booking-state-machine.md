@@ -14,7 +14,8 @@ stateDiagram-v2
   ConfirmBooking --> ConfirmFailed: error after retries
   ReleaseSeat --> BookingFailed
   ReleaseSeat --> CompensationFailed: error after retries
-  MarkFailed --> BookingFailed
+  MarkFailed --> PublishSoldOut
+  PublishSoldOut --> BookingFailed
   BookingConfirmed --> [*]
   BookingFailed --> [*]
 ```
@@ -39,9 +40,10 @@ external provider), notifications. A **saga** runs them as a sequence of local s
 |---|---|---|---|---|
 | `ReserveSeat` | Lambda | Seats − n and booking.seatReservedAt, one DynamoDB transaction | Lambda/transient errors: 2× (1s, 2s, full jitter) | `States.ALL` (incl. `SoldOut`) → `MarkFailed` (no seats were taken, nothing to undo). `States.ALL` must stand alone in `ErrorEquals` |
 | `ProcessPayment` | Lambda | Fake payment; `.13` amounts are declined | `PaymentProviderUnavailable`: 3× exponential backoff with jitter (1s, 2s, 4s). `CircuitOpen`: 1× after 5s | → `ReleaseSeat` (compensation). The error is merged into the input as `error` |
-| `ConfirmBooking` | Lambda | Booking → CONFIRMED (+ live update M4, event M5) | 3× | → `ConfirmFailed` (Fail: money taken, booking not confirmed, a human must act) |
-| `ReleaseSeat` | Lambda | Compensation: seats + n, booking → FAILED with the reason | 3× | → `CompensationFailed` (Fail) |
+| `ConfirmBooking` | Lambda | Booking → CONFIRMED, live seat update (AppSync), `BookingConfirmed` (EventBridge) | 3× | → `ConfirmFailed` (Fail: money taken, booking not confirmed, a human must act) |
+| `ReleaseSeat` | Lambda | Compensation: seats + n, booking → FAILED with the reason, live update, `BookingFailed` | 3× | → `CompensationFailed` (Fail) |
 | `MarkFailed` | **DynamoDB direct** | Booking → FAILED. No Lambda: Step Functions calls DynamoDB `UpdateItem` itself | 3× | — |
+| `PublishSoldOut` | **EventBridge direct** | Publishes `BookingFailed` (with the reason) to the bus, like ReleaseSeat does on the payment path | 3× | — |
 | `BookingConfirmed` / `BookingFailed` | Succeed | Both are *handled* outcomes, so the execution succeeds and no alarm fires | — | — |
 | `ConfirmFailed` / `CompensationFailed` | Fail | Unhandled problems: the execution fails and the M6 alarm fires | — | — |
 
@@ -70,7 +72,7 @@ Standard workflows run up to a year, keep a full visual history for 90 days and 
 well-formed ARNs first:
 
 ```bash
-sed -e 's/\${[A-Za-z]*Arn}/arn:aws:lambda:us-east-1:123456789012:function:x/g; s/\${BookingsTable}/Bookings/' \
+sed -e 's/\${[A-Za-z]*Arn}/arn:aws:lambda:us-east-1:123456789012:function:x/g; s/\${BookingsTable}/Bookings/; s/\${EventBusName}/ticketlite-dev/' \
   booking-state-machine.asl.json > /tmp/asl.json
 AWS_PROFILE=ticketlite aws stepfunctions validate-state-machine-definition --definition file:///tmp/asl.json --type STANDARD
 ```

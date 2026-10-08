@@ -2,6 +2,8 @@
 // Importing a file creates the resources declared in it.
 import { httpStage } from "./http-routes";
 import "./uploads";
+import { emailDlq, eventBus } from "./events";
+import { paymentSecret, redisSecret } from "./secrets";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { apiKey, graphqlUrl } from "./appsync";
 import * as pulumi from "@pulumi/pulumi";
@@ -33,3 +35,11 @@ export const organizersTableName = organizersTable.name;
 // the browser's JavaScript), so it is deliberately exported as a plain value, not a Pulumi secret.
 export const appsyncUrl = graphqlUrl;
 export const appsyncApiKey = pulumi.unsecret(apiKey.key);
+
+// Event-driven pieces (for the runbook: inspect / redrive the DLQ).
+export const eventBusName = eventBus.name;
+export const emailDlqUrl = emailDlq.url;
+
+// Secret ARNs: set their values by hand once (docs/CICD-SETUP.md). Never the values themselves.
+export const paymentSecretArn = paymentSecret.arn;
+export const redisSecretArn = redisSecret?.arn;

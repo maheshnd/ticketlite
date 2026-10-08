@@ -3,7 +3,9 @@ import { SFNClient, StartExecutionCommand } from "@aws-sdk/client-sfn";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
+import { tooManyRequests } from "../src/errors";
 import * as jwt from "../src/lib/jwt";
+import * as rateLimit from "../src/services/rate-limit-service";
 import { fakeDynamoDb } from "./fake-dynamodb";
 import { sampleEvent } from "./fixtures";
 
@@ -65,6 +67,16 @@ describe("POST /api/bookings", () => {
     expect((await book("key-00000004", 6)).statusCode).toBe(202); // 42 seats left: fine
     db.seed("Events", { ...sampleEvent, availableSeats: 1 });
     expect((await book("key-00000005", 2)).statusCode).toBe(409);
+  });
+});
+
+describe("rate limiting", () => {
+  it("answers 429 with Retry-After and starts no saga when the user books too often", async () => {
+    vi.spyOn(rateLimit, "checkBookingRateLimit").mockRejectedValueOnce(tooManyRequests(42));
+    const res = await book("key-00000006");
+    expect(res.statusCode).toBe(429);
+    expect(res.headers["retry-after"]).toBe("42");
+    expect(sfnMock.commandCalls(StartExecutionCommand)).toHaveLength(0);
   });
 });
 

@@ -24,6 +24,9 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `http-routes.ts` | Lambda integration, public routes, JWT authorizer + protected routes, stage (throttling, access logs) |
 | `stepfunctions.ts` | Booking saga: 4 Lambdas + Standard state machine (`booking-state-machine.asl.json`, explained in `.md`) |
 | `appsync.ts` | GraphQL API (3 auth modes), API key, data sources, JS + pipeline resolvers, organizer batch Lambda |
+| `events.ts` | EventBridge bus + rules, SQS email queue + DLQ, email-worker, SES identity, SNS admin topic |
+| `search.ts` | (flag `enableSearch`) OpenSearch domain, search-indexer + stream mapping + failure queue |
+| `secrets.ts` | Secrets Manager containers (payment key; Upstash URL with `enableCache`) |
 | `uploads.ts` | Posters bucket CORS, poster-processor (async S3 trigger), `poster-failures` queue |
 | `storage.ts` | `web` and `posters` S3 buckets (private) |
 | `cdn.ts` | CloudFront: OAC, S3 + API origins, security headers, bucket policies |

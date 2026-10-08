@@ -23,6 +23,12 @@ const EnvSchema = z.object({
   // The booking saga and the posters bucket. Empty locally: those features need the deployed stack.
   BOOKING_STATE_MACHINE_ARN: z.string().default(""),
   POSTERS_BUCKET: z.string().default(""),
+  // Flags that mirror Pulumi's cost-safety flags. Off = the API uses a simpler fallback, never an error.
+  CACHE_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_URL: z.string().optional(), // local only (docker-compose). In AWS the URL is a secret:
+  REDIS_SECRET_ARN: z.string().optional(), // Secrets Manager, read at runtime (never an env var value)
+  OPENSEARCH_ENDPOINT: z.string().optional(), // unset = search falls back to DynamoDB
+  EVENT_BUS_NAME: z.string().optional(), // unset (local) = domain events are only logged
   // Cognito IDs (not secrets). Empty locally until you copy them from `pulumi stack output` into api/.env.
   USER_POOL_ID: z.string().default(""),
   USER_POOL_CLIENT_ID: z.string().default(""),
@@ -53,6 +59,13 @@ export const config = {
   },
   bookingStateMachineArn: env.BOOKING_STATE_MACHINE_ARN,
   postersBucket: env.POSTERS_BUCKET,
+  cache: {
+    enabled: env.CACHE_ENABLED === "true",
+    redisUrl: env.REDIS_URL,
+    redisSecretArn: env.REDIS_SECRET_ARN,
+  },
+  opensearchEndpoint: env.OPENSEARCH_ENDPOINT,
+  eventBusName: env.EVENT_BUS_NAME,
   cognito: {
     userPoolId: env.USER_POOL_ID,
     clientId: env.USER_POOL_CLIENT_ID,
