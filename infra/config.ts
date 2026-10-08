@@ -25,3 +25,5 @@ export const flags = {
 export const alertEmail = cfg.require("alertEmail");
 export const sesEmail = cfg.require("sesEmail");
 export const localWebOrigin = cfg.require("localWebOrigin");
+// 0..1: how often the fake payment provider is "unavailable" (a transient error the saga retries).
+export const paymentFailureRate = cfg.getNumber("paymentFailureRate") ?? 0;

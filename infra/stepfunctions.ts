@@ -1,0 +1,107 @@
+// The booking saga: three step Lambdas + one compensation Lambda, orchestrated by a Step Functions
+// STANDARD state machine. The definition is in booking-state-machine.asl.json, explained in
+// booking-state-machine.md. CONCEPT: saga, orchestration
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as aws from "@pulumi/aws";
+import * as pulumi from "@pulumi/pulumi";
+import { paymentFailureRate, stage } from "./config";
+import { bookingsTable, eventsTable } from "./dynamodb";
+import { createNodeFunction } from "./node-function";
+
+// Step 1: the saga Lambdas. Each gets only the table actions it uses (TransactWriteItems needs UpdateItem).
+const tables = { EVENTS_TABLE: eventsTable.name, BOOKINGS_TABLE: bookingsTable.name };
+const updateBoth = [{ Action: ["dynamodb:UpdateItem"], Resource: [eventsTable.arn, bookingsTable.arn] }];
+
+const reserveSeat = createNodeFunction("booking-reserve-seat", {
+  codeDir: "../functions/booking-reserve-seat/dist",
+  environment: tables,
+  statements: updateBoth,
+});
+const processPayment = createNodeFunction("booking-process-payment", {
+  codeDir: "../functions/booking-process-payment/dist",
+  environment: { PAYMENT_FAILURE_RATE: String(paymentFailureRate) },
+});
+const confirm = createNodeFunction("booking-confirm", {
+  codeDir: "../functions/booking-confirm/dist",
+  environment: tables,
+  statements: [{ Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] }],
+});
+const releaseSeat = createNodeFunction("booking-release-seat", {
+  codeDir: "../functions/booking-release-seat/dist",
+  environment: tables,
+  statements: updateBoth,
+});
+const sagaFunctions = [reserveSeat, processPayment, confirm, releaseSeat];
+
+// Step 2: the state machine's own role: invoke exactly these four functions, update bookings directly
+// (the MarkFailed state), write traces and logs.
+const sfnRole = new aws.iam.Role("booking-saga-role", {
+  assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "states.amazonaws.com" }),
+});
+new aws.iam.RolePolicy("booking-saga-policy", {
+  role: sfnRole.name,
+  policy: pulumi.jsonStringify({
+    Version: "2012-10-17",
+    Statement: [
+      { Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: sagaFunctions.map((f) => f.fn.arn) },
+      { Effect: "Allow", Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] },
+      {
+        Effect: "Allow",
+        Action: [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+        ],
+        Resource: ["*"],
+      },
+      // CloudWatch Logs "vended log" delivery. These actions don't support resource-level permissions.
+      {
+        Effect: "Allow",
+        Action: [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+          "logs:DescribeLogGroups",
+        ],
+        Resource: ["*"],
+      },
+    ],
+  }),
+});
+
+// Step 3: fill the placeholders in the ASL file with real ARNs and names.
+const template = fs.readFileSync(path.join(__dirname, "booking-state-machine.asl.json"), "utf8");
+const definition = pulumi
+  .all([reserveSeat.fn.arn, processPayment.fn.arn, confirm.fn.arn, releaseSeat.fn.arn, bookingsTable.name])
+  .apply(([reserve, pay, conf, release, table]) =>
+    template
+      .replaceAll("${ReserveSeatArn}", reserve)
+      .replaceAll("${ProcessPaymentArn}", pay)
+      .replaceAll("${ConfirmArn}", conf)
+      .replaceAll("${ReleaseSeatArn}", release)
+      .replaceAll("${BookingsTable}", table),
+  );
+
+// Step 4: the state machine. ERROR-level logs (failed states only) keep log costs near zero.
+const sfnLogs = new aws.cloudwatch.LogGroup("booking-saga-logs", {
+  name: `/aws/vendedlogs/states/ticketlite-booking-${stage}`,
+  retentionInDays: 7,
+});
+export const bookingStateMachine = new aws.sfn.StateMachine("booking-saga", {
+  name: `ticketlite-booking-${stage}`,
+  type: "STANDARD", // exactly-once steps, up to 1 year, visual history. See docs/adr/0005-standard-workflow.md
+  roleArn: sfnRole.arn,
+  definition,
+  tracingConfiguration: { enabled: true }, // X-Ray across the API, the state machine and every Lambda
+  loggingConfiguration: {
+    level: "ERROR",
+    includeExecutionData: false, // don't copy booking data into logs
+    logDestination: pulumi.interpolate`${sfnLogs.arn}:*`,
+  },
+});

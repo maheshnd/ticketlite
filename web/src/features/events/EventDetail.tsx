@@ -5,6 +5,7 @@
 import { ApiError } from "../../lib/api-client";
 import { formatDate, formatPrice } from "../../lib/format";
 import { PageHeading } from "../../components/PageHeading";
+import { BookButton } from "../bookings/BookButton";
 import { useEvent } from "./events-queries";
 
 export function EventDetail({ eventId }: { eventId: string }) {
@@ -42,6 +43,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <p aria-live="polite" className="font-medium">
         {event.availableSeats} of {event.totalSeats} seats left
       </p>
+      <BookButton event={event} />
       <p className="text-slate-700">{event.description}</p>
     </article>
   );

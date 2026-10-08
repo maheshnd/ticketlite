@@ -1,10 +1,20 @@
 // The Lambda functions. M1 has only the api ("Lambdalith": one Fastify app serving every REST route).
 // Later milestones add the small single-job functions (saga steps, workers, indexers) here.
 import * as aws from "@pulumi/aws";
-import { appUrl, cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
+import { appUrl } from "./cdn";
+import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { flags } from "./config";
-import { eventsTable, organizersTable, sessionsTable, tableResources } from "./dynamodb";
+import {
+  bookingsTable,
+  eventsTable,
+  idempotencyTable,
+  organizersTable,
+  sessionsTable,
+  tableResources,
+} from "./dynamodb";
 import { createNodeFunction } from "./node-function";
+import { bookingStateMachine } from "./stepfunctions";
+import { postersBucket } from "./storage";
 
 // Step 1: the api function. The code is the esbuild bundle (`pnpm build` at the repo root first).
 // publish: true creates a new numbered version on every code change. CONCEPT: lambda-versions
@@ -21,6 +31,10 @@ export const api = createNodeFunction("api", {
     EVENTS_TABLE: eventsTable.name,
     ORGANIZERS_TABLE: organizersTable.name,
     SESSIONS_TABLE: sessionsTable.name,
+    BOOKINGS_TABLE: bookingsTable.name,
+    IDEMPOTENCY_TABLE: idempotencyTable.name,
+    BOOKING_STATE_MACHINE_ARN: bookingStateMachine.arn,
+    POSTERS_BUCKET: postersBucket.bucket,
     USER_POOL_ID: userPool.id,
     USER_POOL_CLIENT_ID: userPoolClient.id,
     COGNITO_DOMAIN_URL: cognitoDomainUrl,

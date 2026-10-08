@@ -4,3 +4,5 @@ export * from "./event";
 export * from "./pagination";
 export * from "./auth";
 export * from "./organizer";
+export * from "./booking";
+export * from "./poster";

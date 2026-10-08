@@ -1,7 +1,22 @@
 // MSW request handlers: a fake TicketLite API that runs inside the test process (or, in M7, inside the
 // browser via a service worker). Components make real fetch calls; MSW answers them. CONCEPT: api-mocking
 import { HttpResponse, http } from "msw";
+import type { Booking, Event } from "@ticketlite/shared";
 import { mockEvents } from "./data";
+
+// A booking that is PENDING the first time it is read and CONFIRMED after that, like a fast saga.
+const bookingReads = new Map<string, number>();
+const mockBooking = (bookingId: string, reads: number): Booking => ({
+  bookingId,
+  userId: "user-1",
+  eventId: "evt-001",
+  eventName: "Event 1",
+  seats: 2,
+  amount: 998,
+  status: reads > 1 ? "CONFIRMED" : "PENDING",
+  createdAt: "2026-10-08T10:00:00.000Z",
+  updatedAt: "2026-10-08T10:00:00.000Z",
+});
 
 const PAGE_SIZE = 12;
 const problem = (status: number, title: string, detail: string) =>
@@ -39,4 +54,29 @@ export const handlers = [
   http.post("*/api/auth/refresh", () => problem(401, "Unauthorized", "Not logged in.")),
   http.post("*/api/auth/logout", () => new HttpResponse(null, { status: 204 })),
   http.post("*/api/auth/signup", () => HttpResponse.json({ confirmed: false }, { status: 201 })),
+
+  // The logged-in mock user is an admin, so the admin pages can be exercised too.
+  http.get("*/api/me", () =>
+    HttpResponse.json({ userId: "user-1", email: "test@ticketlite.dev", groups: ["admin"] }),
+  ),
+
+  http.post("*/api/bookings", ({ request }) =>
+    request.headers.get("idempotency-key")
+      ? HttpResponse.json({ bookingId: "bk-1", status: "PENDING" }, { status: 202 })
+      : problem(400, "Bad Request", "Send an Idempotency-Key header"),
+  ),
+  http.get("*/api/bookings/:id", ({ params }) => {
+    const id = String(params.id);
+    const reads = (bookingReads.get(id) ?? 0) + 1;
+    bookingReads.set(id, reads);
+    return HttpResponse.json(mockBooking(id, reads));
+  }),
+  http.get("*/api/bookings", () => HttpResponse.json({ items: [mockBooking("bk-1", 2)], nextCursor: null })),
+
+  http.get("*/api/admin/events", () => HttpResponse.json({ items: mockEvents.slice(0, 3) })),
+  http.put("*/api/admin/events/:id", async ({ params, request }) => {
+    const body = (await request.json()) as Partial<Event> & { version: number };
+    const event = mockEvents.find((e) => e.eventId === params.id)!;
+    return HttpResponse.json({ ...event, ...body, version: body.version + 1 });
+  }),
 ];

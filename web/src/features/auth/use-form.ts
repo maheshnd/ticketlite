@@ -1,14 +1,18 @@
-// A tiny form helper shared by the auth forms: values, field errors, a form-level error, submitting state.
+// A tiny form helper shared by the forms: values, field errors, a form-level error, submitting state.
 // On submit it validates with the shared Zod schema first; only valid data reaches `onValid`.
+// Inputs always hold strings; `prepare` converts them (e.g. "499" -> 499) before validation.
 import { useState } from "react";
 import type { z } from "zod";
 import { ApiError } from "../../lib/api-client";
 import { focusFirstError, validate, type FieldErrors } from "../../lib/validate";
 
+type Values = Record<string, string>;
+
 export function useForm<T>(
   schema: z.ZodType<T>,
-  initial: Record<string, string>,
+  initial: Values,
   onValid: (data: T) => Promise<void>,
+  prepare: (values: Values) => unknown = (values) => values,
 ) {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -22,7 +26,7 @@ export function useForm<T>(
     setFormError(null);
 
     // Step 1: client-side validation (instant feedback, same rules as the API).
-    const { data, errors: fieldErrors } = validate(schema, values);
+    const { data, errors: fieldErrors } = validate(schema, prepare(values));
     setErrors(fieldErrors);
     if (!data) return focusFirstError(fieldErrors);
 

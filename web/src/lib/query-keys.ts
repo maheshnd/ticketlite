@@ -8,6 +8,18 @@ export const eventKeys = {
   detail: (eventId: string) => [...eventKeys.details(), eventId] as const,
 };
 
+export const bookingKeys = {
+  all: ["bookings"] as const,
+  mine: () => [...bookingKeys.all, "mine"] as const,
+  detail: (bookingId: string) => [...bookingKeys.all, "detail", bookingId] as const,
+};
+
+export const adminKeys = {
+  all: ["admin"] as const,
+  events: () => [...adminKeys.all, "events"] as const,
+  event: (eventId: string) => [...adminKeys.events(), eventId] as const,
+};
+
 export const authKeys = {
   me: ["me"] as const,
 };

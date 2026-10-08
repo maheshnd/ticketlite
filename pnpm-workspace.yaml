@@ -15,3 +15,11 @@ packages:
 allowBuilds:
   esbuild: true # only checks that its native binary is in place
   protobufjs: false # an unneeded script pulled in by @pulumi/pulumi (https://github.com/protobufjs/protobuf.js/pull/2299)
+
+# aws-sdk-client-mock imports @smithy/types without declaring it, so it would get whatever copy happens to be
+# hoisted. aws-xray-sdk-core (via the Powertools Tracer) brings an old 2.x copy, which breaks its types.
+# Declaring the dependency here pins it to the same major version the AWS SDK v3 uses.
+packageExtensions:
+  aws-sdk-client-mock:
+    dependencies:
+      "@smithy/types": ^4.19.0

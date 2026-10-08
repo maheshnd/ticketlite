@@ -9,7 +9,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M0 | Workspace setup | ✅ done — `pulumi preview`: 10 to create (nothing deployed yet) |
 | M1 | Refactor api/infra, CloudFront + S3 + web skeleton, CI/CD | ✅ done — `pulumi preview`: 28 to create; actionlint clean |
 | M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | ✅ done — `pulumi preview`: 53 to create; 52 tests |
-| M3 | Booking saga, idempotency, admin CRUD, poster upload | todo |
+| M3 | Booking saga, idempotency, admin CRUD, poster upload | ✅ done — `pulumi preview`: 99 to create; ASL validated by AWS; 85 tests |
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | todo |
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | todo |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | todo |
@@ -37,6 +37,15 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 16. **One Cognito app client, no secret**, flows `USER_PASSWORD_AUTH` + `REFRESH_TOKEN_AUTH` + code/PKCE. Refresh-token rotation stays off (Cognito then returns no new refresh token on refresh).
 17. **MSW 3** renamed `onUnhandledRequest` to `onUnhandledFrame`.
 18. **Root `package.json` is `"type": "module"`** so `tsx` runs the scripts as ESM (top-level await).
+19. **Step Functions uses JSONata** (`QueryLanguage: JSONata`), AWS's current recommendation; the definition is a plain `.asl.json` file with `${...}` placeholders, explained in `booking-state-machine.md`.
+20. **`MarkFailed` is a direct DynamoDB integration** (no Lambda) for the sold-out path. Handled business failures end in a `Succeed` state; only unhandled ones (`ConfirmFailed`, `CompensationFailed`) fail the execution (and will alarm in M6).
+21. **Powertools Logger + Tracer in `functions/` from M3** (spec lists Powertools under M6), so the handlers don't need a rewrite later. M6 adds Metrics.
+22. **`packageExtensions` for `aws-sdk-client-mock`** (declares its missing `@smithy/types` dependency); otherwise an old 2.x copy hoisted from `aws-xray-sdk-core` breaks its types.
+23. **Idempotency returns 422** when a key is reused with a different body (spec lists 409 for "in progress", which we also return).
+24. **Extra admin read routes** `GET /api/admin/events` and `GET /api/admin/events/:id` (the admin list shows drafts; the edit form needs a strongly consistent read with the version).
+25. **poster-processor doesn't bump `version`**, so a poster finishing mid-edit doesn't cause a 409.
+26. **The HTTP API stage moved to `http-routes.ts`**: per-route throttling (`POST /api/bookings`: 5 rps, burst 10) needs the route to exist first. (The spec puts this in M5; done in M3.)
+27. **Saga steps are synchronous Lambda tasks**; the booking amount is `price × seats` rounded to 2 decimals, so an event priced `10.13` triggers the decline path.
 
 ## Open questions
 
@@ -44,5 +53,5 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Next steps
 
-- M3: idempotency service, `POST/GET /api/bookings`, Step Functions saga + 4 saga Lambdas (functions/ package + esbuild per function), admin create/update with optimistic locking, presigned poster POST + poster-processor, booking/my-bookings/admin pages.
+- M4: AppSync: `graphql/schema.graphql` (auth directives), APPSYNC_JS resolvers (TS bundled by esbuild), pipeline resolver for create/update, NONE source for `publishSeatUpdate`, `appsync-organizer-batch` (BatchInvoke), saga confirm/release call `publishSeatUpdate` (SigV4), web codegen + real-time client + live seat count, ADR for the GraphQL client.
 - Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.

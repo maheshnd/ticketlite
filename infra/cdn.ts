@@ -131,3 +131,6 @@ function allowCloudFront(name: string, bucket: aws.s3.Bucket) {
 }
 allowCloudFront("web", webBucket);
 allowCloudFront("posters", postersBucket);
+
+// The public URL of the app. The web app AND the API are served from it.
+export const appUrl = pulumi.interpolate`https://${distribution.domainName}`;

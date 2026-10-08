@@ -21,6 +21,8 @@ export const forbidden = (detail = "You are not allowed to do this.") =>
   new HttpError(403, "Forbidden", detail);
 export const notFound = (detail: string) => new HttpError(404, "Not Found", detail);
 export const conflict = (detail: string) => new HttpError(409, "Conflict", detail);
+export const unprocessable = (detail: string) => new HttpError(422, "Unprocessable Content", detail);
+export const serviceUnavailable = (detail: string) => new HttpError(503, "Service Unavailable", detail);
 export const tooManyRequests = (retryAfterSeconds: number) =>
   new HttpError(429, "Too Many Requests", "Slow down and try again later.", {
     "retry-after": String(retryAfterSeconds),

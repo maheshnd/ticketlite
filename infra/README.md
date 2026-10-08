@@ -8,6 +8,7 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 - **Config:** `Pulumi.dev.yaml` holds the region, default tags, the cost-safety flags (all `false`) and emails.
   `config.ts` reads them once.
 - **Tests:** `pnpm --filter @ticketlite/infra test` (the CloudFront rewrite function).
+- **Validate the state machine** without deploying (read-only API): see `booking-state-machine.md`.
 
 ## Files (one per service area; `index.ts` only wires them and exports outputs)
 
@@ -19,8 +20,10 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `lambdas.ts` | The api Lambda, its `live` alias, provisioned concurrency (flag) |
 | `dynamodb.ts` | Events, Bookings, IdempotencyKeys, Sessions, Organizers tables (GSIs, streams, TTL) |
 | `cognito.ts` | User pool, `admin` group, managed login domain, app client, branding |
-| `http-api.ts` | HTTP API (local-only CORS), stage throttling, access logs |
-| `http-routes.ts` | Lambda integration, public routes, JWT authorizer + protected routes |
+| `http-api.ts` | HTTP API (local-only CORS) |
+| `http-routes.ts` | Lambda integration, public routes, JWT authorizer + protected routes, stage (throttling, access logs) |
+| `stepfunctions.ts` | Booking saga: 4 Lambdas + Standard state machine (`booking-state-machine.asl.json`, explained in `.md`) |
+| `uploads.ts` | Posters bucket CORS, poster-processor (async S3 trigger), `poster-failures` queue |
 | `storage.ts` | `web` and `posters` S3 buckets (private) |
 | `cdn.ts` | CloudFront: OAC, S3 + API origins, security headers, bucket policies |
 | `cdn-rewrite.js` | CloudFront Function: `/event` → `/event.html` |

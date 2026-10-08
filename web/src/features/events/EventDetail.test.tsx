@@ -1,8 +1,10 @@
 // EventDetail: the seat count is in a live region; unknown events get a clear message.
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../test/render";
 import { EventDetail } from "./EventDetail";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 describe("EventDetail", () => {
   it("announces the seat count in an aria-live region", async () => {

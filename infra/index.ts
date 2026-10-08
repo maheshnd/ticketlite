@@ -1,7 +1,7 @@
 // Entry point. It only wires the service files together and exports outputs.
 // Importing a file creates the resources declared in it.
-import { httpStage } from "./http-api";
-import "./http-routes";
+import { httpStage } from "./http-routes";
+import "./uploads";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { eventsTable, organizersTable } from "./dynamodb";
 import { distribution } from "./cdn";

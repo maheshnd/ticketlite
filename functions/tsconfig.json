@@ -1,0 +1,7 @@
+{
+  // Type checking only; esbuild (build.mjs) bundles each handler.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "types": ["node", "aws-lambda"] },
+  "include": ["**/*.ts"],
+  "exclude": ["**/dist", "node_modules"]
+}

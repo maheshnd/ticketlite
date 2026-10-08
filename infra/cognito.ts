@@ -3,7 +3,7 @@
 // CONCEPT: authentication, oauth-pkce
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
-import { distribution } from "./cdn";
+import { appUrl } from "./cdn";
 import { stage } from "./config";
 
 // Step 1: the user pool. Email is the username; Cognito hashes passwords for us (we never see them stored).
@@ -46,7 +46,6 @@ export const userPoolDomain = new aws.cognito.UserPoolDomain("users-domain", {
 
 // Step 4: ONE app client, used by the BFF (the Fastify API). No client secret: the PKCE flow is
 // designed for public clients, and the API never stores a secret for it.
-const appUrl = pulumi.interpolate`https://${distribution.domainName}`;
 export const userPoolClient = new aws.cognito.UserPoolClient("web-client", {
   userPoolId: userPool.id,
   name: `ticketlite-web-${stage}`,
@@ -83,4 +82,3 @@ new aws.cognito.ManagedLoginBranding("web-client-branding", {
 // The token issuer: API Gateway's JWT authorizer and the API check that tokens come from this pool.
 export const issuerUrl = pulumi.interpolate`https://cognito-idp.us-east-1.amazonaws.com/${userPool.id}`;
 export const cognitoDomainUrl = pulumi.interpolate`https://${userPoolDomain.domain}.auth.us-east-1.amazoncognito.com`;
-export { appUrl };

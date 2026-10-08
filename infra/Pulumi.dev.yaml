@@ -24,3 +24,5 @@ config:
   ticketlite-infra:sesEmail: mahesh.deshmukh.tech@gmail.com
   # The Next.js dev server, the ONLY origin allowed by CORS (local development).
   ticketlite-infra:localWebOrigin: http://localhost:3001
+  # 0..1: how often the FAKE payment provider is "unavailable" (try 0.5 to watch Step Functions retries).
+  ticketlite-infra:paymentFailureRate: 0

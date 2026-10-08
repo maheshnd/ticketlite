@@ -1,0 +1,146 @@
+{
+  "Comment": "TicketLite booking saga. Read booking-state-machine.md for an explanation of every state.",
+  "QueryLanguage": "JSONata",
+  "StartAt": "ReserveSeat",
+  "States": {
+    "ReserveSeat": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": { "FunctionName": "${ReserveSeatArn}", "Payload": "{% $states.input %}" },
+      "Output": "{% $states.result.Payload %}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "MarkFailed",
+          "Output": "{% $merge([$states.input, {'error': $states.errorOutput}]) %}"
+        }
+      ],
+      "Next": "ProcessPayment"
+    },
+    "ProcessPayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": { "FunctionName": "${ProcessPaymentArn}", "Payload": "{% $states.input %}" },
+      "Output": "{% $states.result.Payload %}",
+      "Retry": [
+        {
+          "ErrorEquals": ["PaymentProviderUnavailable"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        },
+        { "ErrorEquals": ["CircuitOpen"], "IntervalSeconds": 5, "MaxAttempts": 1 },
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 2,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ReleaseSeat",
+          "Output": "{% $merge([$states.input, {'error': $states.errorOutput}]) %}"
+        }
+      ],
+      "Next": "ConfirmBooking"
+    },
+    "ConfirmBooking": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": { "FunctionName": "${ConfirmArn}", "Payload": "{% $states.input %}" },
+      "Output": "{% $states.result.Payload %}",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "ConfirmFailed" }],
+      "Next": "BookingConfirmed"
+    },
+    "BookingConfirmed": { "Type": "Succeed" },
+    "ReleaseSeat": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": { "FunctionName": "${ReleaseSeatArn}", "Payload": "{% $states.input %}" },
+      "Output": "{% $states.result.Payload %}",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "CompensationFailed" }],
+      "Next": "BookingFailed"
+    },
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Arguments": {
+        "TableName": "${BookingsTable}",
+        "Key": { "bookingId": { "S": "{% $states.input.bookingId %}" } },
+        "UpdateExpression": "SET #status = :failed, failureReason = :reason, updatedAt = :now",
+        "ExpressionAttributeNames": { "#status": "status" },
+        "ExpressionAttributeValues": {
+          ":failed": { "S": "FAILED" },
+          ":reason": { "S": "{% $states.input.error.Error %}" },
+          ":now": { "S": "{% $now() %}" }
+        }
+      },
+      "Output": "{% $states.input %}",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "BookingFailed"
+    },
+    "BookingFailed": {
+      "Type": "Succeed",
+      "Comment": "A business failure that was handled cleanly: no alarm."
+    },
+    "ConfirmFailed": {
+      "Type": "Fail",
+      "Error": "ConfirmFailed",
+      "Cause": "Payment was taken but the booking could not be confirmed. Needs a human."
+    },
+    "CompensationFailed": {
+      "Type": "Fail",
+      "Error": "CompensationFailed",
+      "Cause": "Seats could not be released. Needs a human."
+    }
+  }
+}

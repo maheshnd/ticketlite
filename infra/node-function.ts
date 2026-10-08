@@ -48,6 +48,7 @@ export function createNodeFunction(name: string, args: NodeFunctionArgs) {
       environment: {
         variables: {
           STAGE: stage,
+          POWERTOOLS_SERVICE_NAME: name, // Powertools adds it to every log line and trace
           NODE_OPTIONS: "--enable-source-maps", // readable stack traces from the minified bundle
           ...args.environment,
         },

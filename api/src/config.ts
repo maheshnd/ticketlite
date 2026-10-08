@@ -18,6 +18,11 @@ const EnvSchema = z.object({
   EVENTS_TABLE: z.string().default("Events"),
   ORGANIZERS_TABLE: z.string().default("Organizers"),
   SESSIONS_TABLE: z.string().default("Sessions"),
+  BOOKINGS_TABLE: z.string().default("Bookings"),
+  IDEMPOTENCY_TABLE: z.string().default("IdempotencyKeys"),
+  // The booking saga and the posters bucket. Empty locally: those features need the deployed stack.
+  BOOKING_STATE_MACHINE_ARN: z.string().default(""),
+  POSTERS_BUCKET: z.string().default(""),
   // Cognito IDs (not secrets). Empty locally until you copy them from `pulumi stack output` into api/.env.
   USER_POOL_ID: z.string().default(""),
   USER_POOL_CLIENT_ID: z.string().default(""),
@@ -43,7 +48,11 @@ export const config = {
     events: env.EVENTS_TABLE,
     organizers: env.ORGANIZERS_TABLE,
     sessions: env.SESSIONS_TABLE,
+    bookings: env.BOOKINGS_TABLE,
+    idempotency: env.IDEMPOTENCY_TABLE,
   },
+  bookingStateMachineArn: env.BOOKING_STATE_MACHINE_ARN,
+  postersBucket: env.POSTERS_BUCKET,
   cognito: {
     userPoolId: env.USER_POOL_ID,
     clientId: env.USER_POOL_CLIENT_ID,
