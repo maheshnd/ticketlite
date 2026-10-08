@@ -1,15 +1,18 @@
 "use client";
 // The event detail: name, date, venue, price, poster and the seat count.
-// The seat count sits in an aria-live region, so screen readers announce it when it changes
-// (live updates arrive in M4 through the AppSync subscription).
+// The seat count sits in an aria-live region, so screen readers announce it when it changes; live updates
+// arrive through the AppSync subscription (useLiveSeats).
 import { ApiError } from "../../lib/api-client";
 import { formatDate, formatPrice } from "../../lib/format";
 import { PageHeading } from "../../components/PageHeading";
 import { BookButton } from "../bookings/BookButton";
 import { useEvent } from "./events-queries";
+import { useLiveSeats } from "./live-seats";
+import { OrganizerName } from "./OrganizerName";
 
 export function EventDetail({ eventId }: { eventId: string }) {
   const { data: event, error, isPending } = useEvent(eventId);
+  useLiveSeats(eventId);
 
   if (!eventId) return <p role="alert">No event selected.</p>;
   if (isPending) return <p role="status">Loading event…</p>;
@@ -39,6 +42,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
       <p>
         <time dateTime={event.startsAt}>{formatDate(event.startsAt)}</time> · {event.venue}, {event.city}
       </p>
+      <OrganizerName eventId={event.eventId} />
       <p className="text-lg font-semibold">{formatPrice(event.price)}</p>
       <p aria-live="polite" className="font-medium">
         {event.availableSeats} of {event.totalSeats} seats left

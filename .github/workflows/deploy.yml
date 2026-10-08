@@ -56,7 +56,11 @@ jobs:
 
       # Step 4: build the web app AFTER pulumi up, because later milestones bake stack outputs
       # (the AppSync URL, the Cognito domain) into it as NEXT_PUBLIC_* variables.
+      # The AppSync URL and its PUBLIC API key are baked into the JavaScript (they are not secrets).
       - run: pnpm --filter @ticketlite/web build
+        env:
+          NEXT_PUBLIC_APPSYNC_URL: ${{ steps.pulumi.outputs.appsyncUrl }}
+          NEXT_PUBLIC_APPSYNC_API_KEY: ${{ steps.pulumi.outputs.appsyncApiKey }}
 
       # Step 5: upload with the right cache headers. CONCEPT: cdn
       #  - _next/* files have a content hash in their name, so they can be cached for a year ("immutable").

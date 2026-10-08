@@ -1,6 +1,7 @@
 // MSW request handlers: a fake TicketLite API that runs inside the test process (or, in M7, inside the
 // browser via a service worker). Components make real fetch calls; MSW answers them. CONCEPT: api-mocking
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, ws } from "msw";
+import { graphql } from "msw/graphql"; // MSW 3 moved GraphQL mocking to its own entry point
 import type { Booking, Event } from "@ticketlite/shared";
 import { mockEvents } from "./data";
 
@@ -25,7 +26,48 @@ const problem = (status: number, title: string, detail: string) =>
     { status, headers: { "content-type": "application/problem+json" } },
   );
 
+// AppSync real-time: a WebSocket that speaks AppSync's protocol. Tests can push seat updates with
+// pushSeatUpdate() below (in the browser mock mode, the mock booking flow does the same).
+export const appsyncRealtime = ws.link("wss://*.appsync-realtime-api.*/graphql");
+const appsyncGraphql = graphql.link("https://*.appsync-api.*/graphql"); // MSW 3: GraphQL mocks are per endpoint
+let pushToClients: ((eventId: string, availableSeats: number) => void) | undefined;
+export const pushSeatUpdate = (eventId: string, availableSeats: number) =>
+  pushToClients?.(eventId, availableSeats);
+
 export const handlers = [
+  appsyncRealtime.addEventListener("connection", ({ client }) => {
+    const subscriptions = new Map<string, string>(); // subscription id -> eventId
+    pushToClients = (eventId, availableSeats) => {
+      for (const [id, subscribedEventId] of subscriptions) {
+        if (subscribedEventId !== eventId) continue;
+        const onSeatUpdate = { eventId, availableSeats, updatedAt: new Date().toISOString() };
+        client.send(JSON.stringify({ id, type: "data", payload: { data: { onSeatUpdate } } }));
+      }
+    };
+    client.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {
+        type: string;
+        id: string;
+        payload: { data: string };
+      };
+      if (message.type === "connection_init") {
+        client.send(JSON.stringify({ type: "connection_ack", payload: { connectionTimeoutMs: 300000 } }));
+      }
+      if (message.type === "start") {
+        const { variables } = JSON.parse(message.payload.data) as { variables: { eventId: string } };
+        subscriptions.set(message.id, variables.eventId);
+        client.send(JSON.stringify({ id: message.id, type: "start_ack" }));
+      }
+    });
+  }),
+
+  // AppSync GraphQL over HTTP (MSW parses the operation name from the query).
+  appsyncGraphql.query("EventOrganizer", ({ variables }) =>
+    HttpResponse.json({
+      data: { event: { eventId: variables.id, organizer: { name: "Live Nation India" } } },
+    }),
+  ),
+
   // Cursor pagination, like the real API: the cursor here is simply the next index.
   http.get("*/api/events", ({ request }) => {
     const url = new URL(request.url);

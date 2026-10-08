@@ -4,6 +4,8 @@ import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, tableName } from "../shared/dynamodb";
 import { logger } from "../shared/powertools";
+import { publishSeatUpdate } from "../shared/appsync";
+import { getAvailableSeats } from "../shared/events-table";
 import type { SagaInput } from "../shared/saga";
 
 const EVENTS_TABLE = tableName("EVENTS_TABLE");
@@ -53,5 +55,8 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
   }
 
   logger.info("seats released", { reason });
+  // Live update for everyone watching this event (AppSync subscription, M4).
+  const seats = await getAvailableSeats(input.eventId);
+  if (seats !== undefined) await publishSeatUpdate(input.eventId, seats);
   return input;
 };

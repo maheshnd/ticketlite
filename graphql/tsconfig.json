@@ -1,0 +1,5 @@
+{
+  // Type checking for the AppSync resolvers. esbuild (build.mjs) turns them into the JS AppSync runs.
+  "extends": "../tsconfig.base.json",
+  "include": ["resolvers", "scripts"]
+}

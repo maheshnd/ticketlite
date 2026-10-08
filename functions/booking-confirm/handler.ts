@@ -1,10 +1,12 @@
 // Saga step 3: ConfirmBooking. Marks the booking CONFIRMED.
-// Later milestones add: the live seat update to AppSync (M4) and the BookingConfirmed event (M5).
+// Then it publishes the live seat count to AppSync. M5 adds the BookingConfirmed event (EventBridge).
 // CONCEPT: saga, idempotency
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, tableName } from "../shared/dynamodb";
 import { logger } from "../shared/powertools";
+import { publishSeatUpdate } from "../shared/appsync";
+import { getAvailableSeats } from "../shared/events-table";
 import type { SagaInput } from "../shared/saga";
 
 const BOOKINGS_TABLE = tableName("BOOKINGS_TABLE");
@@ -35,5 +37,8 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
   }
 
   logger.info("booking confirmed");
+  // Live update for everyone watching this event (AppSync subscription, M4).
+  const seats = await getAvailableSeats(input.eventId);
+  if (seats !== undefined) await publishSeatUpdate(input.eventId, seats);
   return input;
 };

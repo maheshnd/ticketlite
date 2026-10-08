@@ -10,7 +10,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M1 | Refactor api/infra, CloudFront + S3 + web skeleton, CI/CD | ✅ done — `pulumi preview`: 28 to create; actionlint clean |
 | M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | ✅ done — `pulumi preview`: 53 to create; 52 tests |
 | M3 | Booking saga, idempotency, admin CRUD, poster upload | ✅ done — `pulumi preview`: 99 to create; ASL validated by AWS; 85 tests |
-| M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | todo |
+| M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | ✅ done — `pulumi preview`: 125 to create; all 9 resolvers pass `aws appsync evaluate-code`; 93 tests |
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | todo |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | todo |
 | M7 | Playwright + axe, all docs, final pass | todo |
@@ -46,6 +46,13 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 25. **poster-processor doesn't bump `version`**, so a poster finishing mid-edit doesn't cause a 409.
 26. **The HTTP API stage moved to `http-routes.ts`**: per-route throttling (`POST /api/bookings`: 5 rps, burst 10) needs the route to exist first. (The spec puts this in M5; done in M3.)
 27. **Saga steps are synchronous Lambda tasks**; the booking amount is `price × seats` rounded to 2 decimals, so an event priced `10.13` triggers the decline path.
+28. **`@aws-appsync/eslint-plugin` is not used**: it supports only ESLint ≤9 / TS ≤5. Instead `pnpm --filter @ticketlite/graphql evaluate` runs every bundled resolver in the real APPSYNC_JS runtime (`aws appsync evaluate-code`, read-only).
+29. **GraphQL client** (ADR 0006): typed `fetch` for queries (GraphQL Code Generator, `documentMode: "string"`), a hand-written AppSync real-time WebSocket client for `onSeatUpdate`. No Amplify/Apollo.
+30. **Admin check in a pipeline function** (`fn-check-admin`), not the `cognito_groups` directive argument, to demonstrate pipelines (as the spec asks). Subscription filtering uses AppSync's built-in argument matching (`eventId`), so no subscription resolver.
+31. **Where the web uses GraphQL**: the organizer name on the event page and the live seat count. The list and detail stay on REST to show HTTP caching. The N+1 demo is documented as a console/curl query (`graphql/README.md`).
+32. **The AppSync API key is exported unsecret** (`pulumi.unsecret`): it is public by design (shipped in the web JS). Its `expires` is set once (~360 days) and ignored afterwards.
+33. **MSW 3**: GraphQL mocks moved to `msw/graphql` and need `graphql.link(url)`; WebSocket mocks (`ws.link`) let the tests run the real AppSync real-time client.
+34. **The saga publishes live updates best-effort** (Confirm and ReleaseSeat read the new seat count, then call `publishSeatUpdate` with SigV4; failures only log a warning).
 
 ## Open questions
 
@@ -53,5 +60,5 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Next steps
 
-- M4: AppSync: `graphql/schema.graphql` (auth directives), APPSYNC_JS resolvers (TS bundled by esbuild), pipeline resolver for create/update, NONE source for `publishSeatUpdate`, `appsync-organizer-batch` (BatchInvoke), saga confirm/release call `publishSeatUpdate` (SigV4), web codegen + real-time client + live seat count, ADR for the GraphQL client.
+- M5: `events.ts` (EventBridge bus `ticketlite`, rules → SQS email-queue + DLQ → email-worker (SES), SNS admin-notifications), saga publishes BookingConfirmed/BookingFailed, admin create publishes EventCreated, Events stream → search-indexer (bisect, retries, on-failure), `search.ts` (flag) + mapping/analyzer + `/api/search` with DynamoDB fallback + search page, Redis cache-aside + stampede lock + invalidation + sliding-window rate limit (flag, no-op cache otherwise), `secrets.ts`, CloudFront 30s cache policy for `/api/events`.
 - Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.

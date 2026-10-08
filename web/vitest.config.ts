@@ -6,6 +6,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     // Node's fetch needs absolute URLs, so tests call the API at this (mocked) origin.
-    env: { NEXT_PUBLIC_API_URL: "http://localhost:3000" },
+    env: {
+      NEXT_PUBLIC_API_URL: "http://localhost:3000",
+      // A fake AppSync endpoint: MSW answers its HTTP queries and its WebSocket (src/mocks/handlers.ts).
+      NEXT_PUBLIC_APPSYNC_URL: "https://test.appsync-api.us-east-1.amazonaws.com/graphql",
+      NEXT_PUBLIC_APPSYNC_API_KEY: "test-api-key",
+    },
   },
 });

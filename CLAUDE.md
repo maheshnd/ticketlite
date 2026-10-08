@@ -37,6 +37,8 @@ Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm
   - **Vitest 5** needs `vite` installed as a peer (root devDependency).
   - App packages use `"module": "preserve"` + `"moduleResolution": "bundler"` (`tsconfig.base.json`): tsc never emits JS, so imports have no `.js` suffix.
   - Prettier formats code only. Markdown is hand-formatted (`.prettierignore`).
+  - AppSync resolvers: `@aws-appsync/eslint-plugin` doesn't support ESLint 10 / TS 6. Check resolvers with `AWS_PROFILE=ticketlite pnpm --filter @ticketlite/graphql evaluate` (read-only `aws appsync evaluate-code`). APPSYNC_JS has no try/catch, throw, `++` or classes.
+  - MSW 3: GraphQL mocks come from `msw/graphql` via `graphql.link(url)`; the option is `onUnhandledFrame` (not `onUnhandledRequest`).
 - **Infra structure.** One Pulumi file per service area (`infra/iam.ts`, `infra/lambdas.ts`, `infra/http-api.ts`, …). `index.ts` only wires them together and exports outputs.
 - **Cost safety.** CloudWatch log groups get 7-day retention. API throttling limits stay low. IAM is least-privilege.
 - **Deploys happen ONLY through GitHub Actions** on merge to `main`.

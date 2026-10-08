@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
+import { graphqlUrl, publishSeatUpdateArn } from "./appsync";
 import { paymentFailureRate, stage } from "./config";
 import { bookingsTable, eventsTable } from "./dynamodb";
 import { createNodeFunction } from "./node-function";
@@ -22,15 +23,20 @@ const processPayment = createNodeFunction("booking-process-payment", {
   codeDir: "../functions/booking-process-payment/dist",
   environment: { PAYMENT_FAILURE_RATE: String(paymentFailureRate) },
 });
+// Confirm and ReleaseSeat also read the new seat count and publish it to AppSync (IAM: only that mutation).
+const liveUpdate = [
+  { Action: ["dynamodb:GetItem"], Resource: [eventsTable.arn] },
+  { Action: ["appsync:GraphQL"], Resource: [publishSeatUpdateArn] },
+];
 const confirm = createNodeFunction("booking-confirm", {
   codeDir: "../functions/booking-confirm/dist",
-  environment: tables,
-  statements: [{ Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] }],
+  environment: { ...tables, APPSYNC_URL: graphqlUrl },
+  statements: [{ Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] }, ...liveUpdate],
 });
 const releaseSeat = createNodeFunction("booking-release-seat", {
   codeDir: "../functions/booking-release-seat/dist",
-  environment: tables,
-  statements: updateBoth,
+  environment: { ...tables, APPSYNC_URL: graphqlUrl },
+  statements: [...updateBoth, ...liveUpdate],
 });
 const sagaFunctions = [reserveSeat, processPayment, confirm, releaseSeat];
 

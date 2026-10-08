@@ -3,6 +3,8 @@
 import { httpStage } from "./http-routes";
 import "./uploads";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
+import { apiKey, graphqlUrl } from "./appsync";
+import * as pulumi from "@pulumi/pulumi";
 import { eventsTable, organizersTable } from "./dynamodb";
 import { distribution } from "./cdn";
 import { postersBucket, webBucket } from "./storage";
@@ -26,3 +28,8 @@ export const cognitoDomain = cognitoDomainUrl;
 // Table names, read by the seed workflow (seed.yml).
 export const eventsTableName = eventsTable.name;
 export const organizersTableName = organizersTable.name;
+
+// AppSync, baked into the web app at build time (deploy.yml). The API key is public by design (it ships in
+// the browser's JavaScript), so it is deliberately exported as a plain value, not a Pulumi secret.
+export const appsyncUrl = graphqlUrl;
+export const appsyncApiKey = pulumi.unsecret(apiKey.key);

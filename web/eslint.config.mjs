@@ -7,6 +7,8 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import root from "../eslint.config.mjs";
 
 export default defineConfig(
+  // Paths here are relative to web/. Generated GraphQL types are not linted.
+  { ignores: ["src/gql/**", "next-env.d.ts"] },
   root,
   next,
   // eslint-config-next already registers the jsx-a11y plugin with its "recommended" rules.

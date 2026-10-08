@@ -8,6 +8,7 @@ export default defineConfig({
       POWERTOOLS_LOG_LEVEL: "SILENT",
       EVENTS_TABLE: "Events",
       BOOKINGS_TABLE: "Bookings",
+      ORGANIZERS_TABLE: "Organizers",
     },
   },
 });

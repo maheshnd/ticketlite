@@ -1,0 +1,122 @@
+# TicketLite GraphQL schema (AWS AppSync). CONCEPT: graphql-schema, appsync-auth-modes
+#
+# Auth modes (infra/appsync.ts):
+#   - default: Cognito user pools (a logged-in user's access token)
+#   - API key: public reads (visitors browse events and watch live seat counts without logging in)
+#   - IAM:     backend only (the booking saga publishes seat updates, signed with SigV4)
+# Directives say which modes may use a type or field. With several modes, a type listed under a
+# non-default mode must name EVERY mode allowed to read it, including the default one.
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+}
+
+type Organizer @aws_api_key @aws_cognito_user_pools {
+  organizerId: ID!
+  name: String!
+}
+
+type Event @aws_api_key @aws_cognito_user_pools {
+  eventId: ID!
+  name: String!
+  description: String!
+  city: String!
+  venue: String!
+  startsAt: AWSDateTime!
+  price: Float!
+  totalSeats: Int!
+  availableSeats: Int!
+  posterKey: String
+  status: EventStatus!
+  version: Int!
+  organizerId: ID!
+  # Resolved by a Lambda with BatchInvoke: one call per BATCH of events, not one per event (the N+1 fix).
+  organizer: Organizer
+}
+
+# Cursor pagination: pass nextToken back to get the next page. CONCEPT: pagination
+type EventConnection @aws_api_key @aws_cognito_user_pools {
+  items: [Event!]!
+  nextToken: String
+}
+
+type Booking @aws_cognito_user_pools {
+  bookingId: ID!
+  eventId: ID!
+  eventName: String!
+  seats: Int!
+  amount: Float!
+  status: String!
+  createdAt: AWSDateTime!
+}
+
+type BookingConnection @aws_cognito_user_pools {
+  items: [Booking!]!
+  nextToken: String
+}
+
+# Pushed to subscribers when a booking changes an event's seat count.
+type SeatUpdate @aws_api_key @aws_cognito_user_pools @aws_iam {
+  eventId: ID!
+  availableSeats: Int!
+  updatedAt: AWSDateTime!
+}
+
+input CreateEventInput {
+  name: String!
+  description: String!
+  city: String!
+  venue: String!
+  startsAt: AWSDateTime!
+  price: Float!
+  totalSeats: Int!
+  organizerId: ID!
+  status: EventStatus!
+}
+
+# Every field optional except `version`: the version the admin's edit was based on (optimistic locking).
+input UpdateEventInput {
+  name: String
+  description: String
+  city: String
+  venue: String
+  startsAt: AWSDateTime
+  price: Float
+  status: EventStatus
+  version: Int!
+}
+
+input SeatUpdateInput {
+  eventId: ID!
+  availableSeats: Int!
+}
+
+type Query {
+  events(city: String, limit: Int, nextToken: String): EventConnection! @aws_api_key @aws_cognito_user_pools
+  event(id: ID!): Event @aws_api_key @aws_cognito_user_pools
+  # Uses the caller's identity (ctx.identity.sub): only logged-in users, only their own bookings.
+  myBookings(limit: Int, nextToken: String): BookingConnection! @aws_cognito_user_pools
+}
+
+type Mutation {
+  # Admin only. A pipeline resolver checks the "admin" group first, then writes.
+  createEvent(input: CreateEventInput!): Event! @aws_cognito_user_pools
+  updateEvent(id: ID!, input: UpdateEventInput!): Event! @aws_cognito_user_pools
+  # Backend only (IAM). A NONE data source: it stores nothing, it only triggers the subscription.
+  publishSeatUpdate(input: SeatUpdateInput!): SeatUpdate! @aws_iam
+}
+
+type Subscription {
+  # Fires for every publishSeatUpdate with the same eventId. CONCEPT: real-time
+  onSeatUpdate(eventId: ID!): SeatUpdate
+    @aws_subscribe(mutations: ["publishSeatUpdate"])
+    @aws_api_key
+    @aws_cognito_user_pools
+}

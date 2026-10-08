@@ -1,0 +1,8 @@
+# AppSync's built-in scalars and auth directives. AppSync defines these itself, so this file is NOT
+# deployed; it only lets standard GraphQL tools (GraphQL Code Generator in web/) read schema.graphql.
+scalar AWSDateTime
+
+directive @aws_api_key on OBJECT | FIELD_DEFINITION
+directive @aws_iam on OBJECT | FIELD_DEFINITION
+directive @aws_cognito_user_pools(cognito_groups: [String]) on OBJECT | FIELD_DEFINITION
+directive @aws_subscribe(mutations: [String]) on FIELD_DEFINITION

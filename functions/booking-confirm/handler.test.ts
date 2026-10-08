@@ -1,13 +1,17 @@
 // ConfirmBooking: PENDING -> CONFIRMED, and a retry is harmless.
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { mockClient } from "aws-sdk-client-mock";
 import { beforeEach, describe, expect, it } from "vitest";
 import { sagaInput } from "../shared/test-input";
 import { handler } from "./handler";
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
-beforeEach(() => ddbMock.reset());
+beforeEach(() => {
+  ddbMock.reset();
+  // The step reads the new seat count for the live update (skipped in tests: APPSYNC_URL is not set).
+  ddbMock.on(GetCommand).resolves({ Item: { availableSeats: 40 } });
+});
 
 describe("booking-confirm", () => {
   it("confirms a pending booking", async () => {
