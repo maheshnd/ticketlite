@@ -1,8 +1,11 @@
 {
     "name": "ticketlite-infra",
     "main": "index.ts",
+    "scripts": {
+        "typecheck": "tsc --noEmit"
+    },
     "devDependencies": {
-        "@types/node": "^18",
+        "@types/node": "^24.19.1",
         "typescript": "^5.0.0"
     },
     "dependencies": {

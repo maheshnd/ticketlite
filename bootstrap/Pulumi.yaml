@@ -1,0 +1,6 @@
+name: ticketlite-bootstrap
+description: One-time setup so GitHub Actions can log in to AWS (OIDC provider + CI roles)
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm

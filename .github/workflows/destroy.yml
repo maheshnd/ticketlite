@@ -1,0 +1,56 @@
+# Cost safety: tear down every resource in the dev stack with one click, e.g. after a study session.
+# Manual only, and you must type "destroy" to confirm. Run it from main; the deploy role trusts nothing else.
+# To bring everything back, run the deploy workflow manually (or push to main).
+name: destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to delete every resource in the dev stack'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  destroy:
+    # Anything other than the exact word skips the job, so a mis-click does nothing.
+    if: inputs.confirm == 'destroy'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    # Same group as the deploy job, so a destroy never overlaps a deploy.
+    concurrency:
+      group: pulumi-dev-stack
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      # Destroy works from the saved stack state and doesn't run our program,
+      # so api/ isn't built. infra/ deps are installed so Pulumi can load the project.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "10.33.2"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: infra/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: infra
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Non-interactive, the same as `pulumi destroy --yes`.
+      - uses: pulumi/actions@v7
+        with:
+          command: destroy
+          stack-name: dev
+          work-dir: infra
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}

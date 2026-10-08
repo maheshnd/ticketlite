@@ -1,0 +1,4 @@
+# pnpm 10+ blocks dependency install scripts by default.
+# esbuild's script only checks that its native binary is in place, so it is safe to allow.
+allowBuilds:
+  esbuild: true

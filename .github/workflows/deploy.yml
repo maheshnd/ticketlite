@@ -1,0 +1,119 @@
+# The ONLY way TicketLite gets deployed.
+#   Pull request to main -> build + typecheck + `pulumi preview`, posted as a PR comment (read-only role)
+#   Push to main         -> build + typecheck + `pulumi up` (deploy role)
+#   Manual run           -> same as a push. Only works from main, because the deploy role trusts nothing else.
+name: deploy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Default for every job: no permissions. Each job asks for exactly what it needs.
+permissions: {}
+
+env:
+  NODE_VERSION: "24" # same major version as the Lambda runtime nodejs24.x
+  PNPM_VERSION: "10.33.2" # same pnpm as the laptop, so the lockfiles match exactly
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # lets the job request a GitHub OIDC token to log in to AWS
+      contents: read # lets checkout read the code
+      pull-requests: write # lets the Pulumi action comment the preview on the PR
+    # One preview per PR. A new push to the same PR cancels the older, now outdated, preview.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      # Steps 1-4 are identical in both jobs, kept duplicated on purpose so each job reads top to bottom.
+      # Step 1: get the code.
+      - uses: actions/checkout@v7
+
+      # Step 2: install pnpm, then Node (setup-node caches the pnpm store using both lockfiles).
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            api/pnpm-lock.yaml
+            infra/pnpm-lock.yaml
+
+      # Step 3: api/ - install exactly what the lockfile says, typecheck, then bundle into api/dist.
+      - run: pnpm install --frozen-lockfile && pnpm typecheck && pnpm build
+        working-directory: api
+
+      # Step 4: infra/ - install and typecheck the Pulumi program.
+      - run: pnpm install --frozen-lockfile && pnpm typecheck
+        working-directory: infra
+
+      # Step 5: swap the GitHub OIDC token for temporary AWS keys of the READ-ONLY preview role.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Step 6: show what WOULD change, and comment it on the PR. Nothing is created.
+      - uses: pulumi/actions@v7
+        with:
+          command: preview
+          stack-name: dev
+          work-dir: infra
+          comment-on-pr: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    # Never run two deploys (or a deploy and a destroy) at once: they would fight over the same stack.
+    # cancel-in-progress: false lets a running deploy finish instead of killing it halfway.
+    concurrency:
+      group: pulumi-dev-stack
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            api/pnpm-lock.yaml
+            infra/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile && pnpm typecheck && pnpm build
+        working-directory: api
+
+      - run: pnpm install --frozen-lockfile && pnpm typecheck
+        working-directory: infra
+
+      # Step 5: the DEPLOY role. Its trust policy only accepts tokens from the main branch.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Step 6: apply the changes for real. The action runs non-interactively, the same as `pulumi up --yes`.
+      - uses: pulumi/actions@v7
+        with:
+          command: up
+          stack-name: dev
+          work-dir: infra
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
