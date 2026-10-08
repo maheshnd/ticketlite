@@ -5,7 +5,7 @@
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, tableName } from "../shared/dynamodb";
-import { logger } from "../shared/powertools";
+import { countMetric, logger } from "../shared/powertools";
 import { publishSeatUpdate } from "../shared/appsync";
 import { publishEvent } from "../shared/eventbridge";
 import { getAvailableSeats } from "../shared/events-table";
@@ -39,6 +39,7 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
   }
 
   logger.info("booking confirmed");
+  countMetric("BookingsConfirmed");
 
   // Domain event: whoever cares (email worker, admin topic) subscribes through EventBridge rules.
   // If PutEvents fails this throws and the state machine retries the step (the update above is idempotent).

@@ -4,6 +4,8 @@ import { httpStage } from "./http-routes";
 import "./uploads";
 import { emailDlq, eventBus } from "./events";
 import { paymentSecret, redisSecret } from "./secrets";
+import "./observability";
+import { partnerApiUrl as partnerUrl, partnerKey } from "./partner-api";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { apiKey, graphqlUrl } from "./appsync";
 import * as pulumi from "@pulumi/pulumi";
@@ -43,3 +45,8 @@ export const emailDlqUrl = emailDlq.url;
 // Secret ARNs: set their values by hand once (docs/CICD-SETUP.md). Never the values themselves.
 export const paymentSecretArn = paymentSecret.arn;
 export const redisSecretArn = redisSecret?.arn;
+
+// Partner REST API. The key IS a credential (it identifies and meters a partner), so it stays a secret:
+//   pulumi stack output partnerApiKey --show-secrets
+export const partnerApiUrl = partnerUrl;
+export const partnerApiKey = pulumi.secret(partnerKey.value);

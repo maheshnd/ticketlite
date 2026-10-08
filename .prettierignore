@@ -10,3 +10,4 @@ BUILD-SPEC.md
 notes
 # Markdown docs are hand-formatted (wide tables read better unwrapped).
 *.md
+packages/sql/migrations

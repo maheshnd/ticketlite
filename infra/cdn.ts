@@ -6,6 +6,7 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { httpApi } from "./http-api";
 import { postersBucket, webBucket } from "./storage";
+import { webAcl } from "./waf";
 
 // AWS managed policies (fixed IDs, the same in every account):
 const CACHING_OPTIMIZED = "658327ea-f89d-4fab-a63d-7e88639e58f6"; // honours the origin's Cache-Control, gzip/brotli
@@ -63,6 +64,7 @@ export const distribution = new aws.cloudfront.Distribution("cdn", {
   isIpv6Enabled: true,
   httpVersion: "http2and3",
   priceClass: "PriceClass_100", // edge locations in North America + Europe only: the cheapest tier
+  webAclId: webAcl?.arn, // WAF (flag enableWaf). For WAFv2 this is the web ACL's ARN
   defaultRootObject: "index.html",
   origins: [
     { originId: "web", domainName: webBucket.bucketRegionalDomainName, originAccessControlId: oac.id },

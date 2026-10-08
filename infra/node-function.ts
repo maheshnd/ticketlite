@@ -49,6 +49,7 @@ export function createNodeFunction(name: string, args: NodeFunctionArgs) {
         variables: {
           STAGE: stage,
           POWERTOOLS_SERVICE_NAME: name, // Powertools adds it to every log line and trace
+          POWERTOOLS_METRICS_NAMESPACE: "TicketLite", // custom metrics (BookingsConfirmed, ...) live here
           NODE_OPTIONS: "--enable-source-maps", // readable stack traces from the minified bundle
           ...args.environment,
         },

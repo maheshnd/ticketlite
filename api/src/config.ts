@@ -29,6 +29,10 @@ const EnvSchema = z.object({
   REDIS_SECRET_ARN: z.string().optional(), // Secrets Manager, read at runtime (never an env var value)
   OPENSEARCH_ENDPOINT: z.string().optional(), // unset = search falls back to DynamoDB
   EVENT_BUS_NAME: z.string().optional(), // unset (local) = domain events are only logged
+  // Optional SQL reporting (flag enableSql): Aurora cluster ARN + its managed secret ARN (not the password).
+  SQL_CLUSTER_ARN: z.string().optional(),
+  SQL_SECRET_ARN: z.string().optional(),
+  SQL_DATABASE: z.string().default("ticketlite"),
   // Cognito IDs (not secrets). Empty locally until you copy them from `pulumi stack output` into api/.env.
   USER_POOL_ID: z.string().default(""),
   USER_POOL_CLIENT_ID: z.string().default(""),
@@ -66,6 +70,10 @@ export const config = {
   },
   opensearchEndpoint: env.OPENSEARCH_ENDPOINT,
   eventBusName: env.EVENT_BUS_NAME,
+  sql:
+    env.SQL_CLUSTER_ARN && env.SQL_SECRET_ARN
+      ? { resourceArn: env.SQL_CLUSTER_ARN, secretArn: env.SQL_SECRET_ARN, database: env.SQL_DATABASE }
+      : undefined,
   cognito: {
     userPoolId: env.USER_POOL_ID,
     clientId: env.USER_POOL_CLIENT_ID,

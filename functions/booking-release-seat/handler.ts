@@ -3,7 +3,7 @@
 import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, tableName } from "../shared/dynamodb";
-import { logger } from "../shared/powertools";
+import { countMetric, logger } from "../shared/powertools";
 import { publishSeatUpdate } from "../shared/appsync";
 import { publishEvent } from "../shared/eventbridge";
 import { getAvailableSeats } from "../shared/events-table";
@@ -56,6 +56,7 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
   }
 
   logger.info("seats released", { reason });
+  countMetric("BookingsFailed");
 
   const { bookingId, eventId, userId, eventName, seats, amount, correlationId } = input;
   await publishEvent("BookingFailed", {

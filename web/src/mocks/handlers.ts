@@ -132,6 +132,12 @@ export const handlers = [
   }),
   http.get("*/api/bookings", () => HttpResponse.json({ items: [mockBooking("bk-1", 2)], nextCursor: null })),
 
+  http.get("*/api/admin/reports", () =>
+    HttpResponse.json({
+      revenuePerEvent: [{ eventId: "evt-001", name: "Event 1", bookings: 3, revenue: 2994 }],
+      bookingsPerDay: [{ day: "2026-10-08", bookings: 3 }],
+    }),
+  ),
   http.get("*/api/admin/events", () => HttpResponse.json({ items: mockEvents.slice(0, 3) })),
   http.put("*/api/admin/events/:id", async ({ params, request }) => {
     const body = (await request.json()) as Partial<Event> & { version: number };

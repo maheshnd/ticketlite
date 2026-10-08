@@ -78,7 +78,7 @@ function createSearch() {
     destinationConfig: { onFailure: { destinationArn: failures.arn } }, // metadata of records that gave up
   });
 
-  return { endpoint, httpAccess };
+  return { endpoint, httpAccess, failures };
 }
 
 // Undefined when the flag is off: the API then uses its DynamoDB fallback.

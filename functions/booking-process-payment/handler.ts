@@ -5,7 +5,7 @@
 // CONCEPT: saga, retries-backoff, circuit-breaker
 import { createHmac } from "node:crypto";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
-import { logger } from "../shared/powertools";
+import { countMetric, logger } from "../shared/powertools";
 import { SagaError, type SagaInput } from "../shared/saga";
 import { CircuitBreaker } from "./circuit-breaker";
 
@@ -45,11 +45,17 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
 
   // Step 1: a business failure. Retrying won't help, so the state machine goes straight to compensation.
   if (Math.round(input.amount * 100) % 100 === 13) {
+    countMetric("PaymentFailures");
     throw new SagaError("PaymentDeclined", "Card declined (amount ends in .13).");
   }
 
-  // Step 2: call the provider through the circuit breaker.
-  const paymentId = await breaker.call(() => chargeCard(input));
+  // Step 2: call the provider through the circuit breaker. Every failed attempt is counted (incl. retries).
+  const paymentId = await breaker
+    .call(() => chargeCard(input))
+    .catch((error: unknown) => {
+      countMetric("PaymentFailures");
+      throw error;
+    });
   logger.info("payment captured", { paymentId, amount: input.amount });
   return { ...input, paymentId };
 };

@@ -20,6 +20,8 @@ import { bookingRoutes } from "./routes/bookings";
 import { adminEventRoutes } from "./routes/admin-events";
 import { adminUploadRoutes } from "./routes/admin-uploads";
 import { searchRoutes } from "./routes/search";
+import { partnerRoutes } from "./routes/partner";
+import { adminReportRoutes } from "./routes/admin-reports";
 
 export async function buildApp() {
   // Step 1: the Fastify instance. Logs are JSON lines (CloudWatch Logs Insights can query any field),
@@ -59,9 +61,13 @@ export async function buildApp() {
       adminEventRoutes(api);
       adminUploadRoutes(api);
       searchRoutes(api);
+      adminReportRoutes(api);
     },
     { prefix: "/api" },
   );
+
+  // Step 5: the partner API lives outside /api: partners call the REST API (API key + usage plan) directly.
+  await app.register(async (partner) => partnerRoutes(partner), { prefix: "/partner" });
 
   return app;
 }

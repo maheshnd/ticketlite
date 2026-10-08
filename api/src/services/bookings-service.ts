@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import type { Booking, CreateBookingInput, CreateBookingResponse } from "@ticketlite/shared";
 import { conflict, notFound } from "../errors";
+import { countMetric } from "../lib/metrics";
 import { startBookingSaga } from "../lib/stepfunctions";
 import {
   getBookingById,
@@ -50,6 +51,7 @@ export async function createBooking(
     await markBookingFailed(booking.bookingId, "CouldNotStart");
     throw error;
   }
+  countMetric("BookingsStarted");
   return { bookingId: booking.bookingId, status: "PENDING" };
 }
 

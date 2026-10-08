@@ -101,3 +101,11 @@ describe("admin events", () => {
     expect(policy.conditions).toContainEqual(["content-length-range", 1, 2 * 1024 * 1024]);
   });
 });
+
+describe("GET /api/admin/reports", () => {
+  it("answers 404 with an explanation when SQL reporting is off", async () => {
+    const res = await app.inject({ url: "/api/admin/reports", headers });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().detail).toContain("enableSql");
+  });
+});

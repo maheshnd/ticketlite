@@ -16,6 +16,7 @@ import { eventBus } from "./events";
 import { createNodeFunction } from "./node-function";
 import { search } from "./search";
 import { redisSecret } from "./secrets";
+import { sql } from "./sql";
 import { bookingStateMachine } from "./stepfunctions";
 import { postersBucket } from "./storage";
 
@@ -43,6 +44,7 @@ export const api = createNodeFunction("api", {
     CACHE_ENABLED: String(flags.enableCache),
     ...(redisSecret ? { REDIS_SECRET_ARN: redisSecret.arn } : {}),
     ...(search ? { OPENSEARCH_ENDPOINT: search.endpoint } : {}),
+    ...(sql ? sql.env : {}),
     USER_POOL_ID: userPool.id,
     USER_POOL_CLIENT_ID: userPoolClient.id,
     COGNITO_DOMAIN_URL: cognitoDomainUrl,

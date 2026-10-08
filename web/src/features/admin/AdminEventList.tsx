@@ -24,9 +24,14 @@ export function AdminEventList() {
             : null
         }
       />
-      <Link href="/admin/events/new" className="self-start rounded bg-indigo-700 px-4 py-2 text-white">
-        New event
-      </Link>
+      <div className="flex gap-4">
+        <Link href="/admin/events/new" className="rounded bg-indigo-700 px-4 py-2 text-white">
+          New event
+        </Link>
+        <Link href="/admin/reports" className="self-center text-indigo-700 underline">
+          Reports
+        </Link>
+      </div>
       <table className="w-full border-collapse bg-white text-left">
         <caption className="sr-only">All events</caption>
         <thead>

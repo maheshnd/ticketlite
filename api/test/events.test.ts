@@ -66,3 +66,12 @@ describe("GET /api/events/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe("GET /partner/events", () => {
+  it("returns the published events list (API Gateway has already checked the API key)", async () => {
+    ddbMock.on(QueryCommand).resolves({ Items: [sampleEvent] });
+    const res = await app.inject({ url: "/partner/events?limit=5" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items).toHaveLength(1);
+  });
+});

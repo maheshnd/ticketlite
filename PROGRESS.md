@@ -12,7 +12,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M3 | Booking saga, idempotency, admin CRUD, poster upload | ✅ done — `pulumi preview`: 99 to create; ASL validated by AWS; 85 tests |
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | ✅ done — `pulumi preview`: 125 to create; all 9 resolvers pass `aws appsync evaluate-code`; 93 tests |
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | ✅ done — `pulumi preview`: 147 to create (157 with search + cache on); search, analyzer and cache checked against local OpenSearch 3.7 + Redis; 109 tests |
-| M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | todo |
+| M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | ✅ done — `pulumi preview`: 167 to create (192 with every flag on); 116 tests |
 | M7 | Playwright + axe, all docs, final pass | todo |
 
 ## Decisions and deviations from the spec
@@ -62,6 +62,12 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 41. **Email recipient**: SES sandbox → every confirmation goes to the verified `sesEmail`, not the booking user's email.
 42. **docker-compose Redis host port is configurable** (`REDIS_PORT`), because 6379 was taken on the dev machine.
 43. **`scripts/index-local-search.ts`** backfills the local OpenSearch from DynamoDB Local (local dev only).
+44. **Alarms**: 7 (≤ 10 free): API 5xx, Lambda errors and throttles across ALL functions (account-level metrics, one alarm each instead of one per function), failed saga executions, and every DLQ/failure queue.
+45. **Custom metrics via Powertools EMF**, flushed right after each count (`countMetric`). The API emits `BookingsStarted` only inside Lambda.
+46. **Partner API** proxies to the same api Lambda alias (Fastify route `/partner/events`, outside `/api`). The partner key is exported as a Pulumi secret (it is a credential, unlike the AppSync key).
+47. **Aurora PostgreSQL 17.11** (18.6 is newest). Both support scale to zero (verified with `describe-db-engine-versions`); 17 chosen because Data API support for 18 isn't confirmable via API. Verify on first enable.
+48. **Optional SQL lives in `packages/sql`** (schema, migrations, reports), shared by `functions/sql-reporter` and the API. Migrations run on the reporter's cold start; `/api/admin/reports` answers 404 when the flag is off and 503 + Retry-After while the cluster resumes.
+49. **Encryption keys**: service defaults, no customer-managed KMS keys (ADR 0007).
 
 ## Open questions
 
@@ -69,5 +75,5 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Next steps
 
-- M6: Powertools Metrics (BookingsStarted/Confirmed/Failed, PaymentFailures) + correlationId everywhere, `observability.ts` (alarms → SNS `alarms`, dashboard), `waf.ts` (flag), `partner-api.ts` (REST API + API key + usage plan/quota → api alias), optional SQL (`sql.ts`, `sql-reporter` with Drizzle + Data API, `/api/admin/reports`, reports page), docs/SECURITY.md.
+- M7: Playwright E2E (visitor, user, admin journeys in MSW mock mode) + axe on main pages, in ci.yml and as the post-deploy smoke test; `/learn` page; remaining docs (README, ARCHITECTURE, CONCEPT-MAP 12 topics + backend concepts, LEARNING-PATH, ADRs 0001/0003, COSTS, CODE-REVIEW, per-folder READMEs); coverage report in CI; final consistency pass and the §21 report.
 - Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.
