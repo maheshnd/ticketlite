@@ -2,3 +2,25 @@ config:
   # No aws:profile here: CI has no local profile. Credentials come from the environment
   # (OIDC role in GitHub Actions, or AWS_PROFILE=ticketlite for a local preview).
   aws:region: us-east-1
+
+  # Every AWS resource gets these tags automatically (cost reports can be filtered by them).
+  aws:defaultTags:
+    tags:
+      project: ticketlite
+      stage: dev
+      managedBy: pulumi
+
+  # Cost-safety flags (BUILD-SPEC §14). Each one turns on a paid or always-on service. All default to false.
+  ticketlite-infra:enableSearch: false # OpenSearch domain (hourly instance cost)
+  ticketlite-infra:enableCache: false # Upstash Redis (needs an Upstash account + secret)
+  ticketlite-infra:enableSql: false # Aurora Serverless v2 + sql-reporter
+  ticketlite-infra:enableWaf: false # WAF web ACL on CloudFront (monthly ACL + rule cost)
+  ticketlite-infra:enableCustomDomain: false # ACM certificate + custom domain on CloudFront (needs DNS)
+  ticketlite-infra:enableProvisionedConcurrency: false # pre-warmed api Lambda (paid while idle)
+  # ticketlite-infra:reservedConcurrency: 10   # unset by default: low-quota accounts reject it
+
+  # Where alarms and admin notifications go. SES (sandbox) can only send to verified addresses.
+  ticketlite-infra:alertEmail: mahesh.deshmukh.tech@gmail.com
+  ticketlite-infra:sesEmail: mahesh.deshmukh.tech@gmail.com
+  # The Next.js dev server, the ONLY origin allowed by CORS (local development).
+  ticketlite-infra:localWebOrigin: http://localhost:3001

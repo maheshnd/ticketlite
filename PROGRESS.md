@@ -7,7 +7,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Workspace setup | ✅ done — `pulumi preview`: 10 to create (nothing deployed yet) |
-| M1 | Refactor api/infra, CloudFront + S3 + web skeleton, CI/CD | todo |
+| M1 | Refactor api/infra, CloudFront + S3 + web skeleton, CI/CD | ✅ done — `pulumi preview`: 28 to create; actionlint clean |
 | M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | todo |
 | M3 | Booking saga, idempotency, admin CRUD, poster upload | todo |
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | todo |
@@ -25,6 +25,12 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 4. **pnpm 10.33.2**, as CLAUDE.md pins it (pnpm 12 is the latest).
 5. **DynamoDB Local in docker-compose.** The spec lists Redis and OpenSearch only; the local API also needs DynamoDB.
 6. **App packages use `moduleResolution: "bundler"`.** No tool emits JS with `tsc`, so imports need no `.js` suffix.
+7. **Fresh Pulumi resource names.** The plan said to keep phase-1 logical names, but the `dev` stack has never been deployed (preview showed only creates), so names follow the new files (`http-api`, `api-live`, …).
+8. **No CloudFront custom error pages.** `customErrorResponses` apply to the whole distribution, so API 403/404 problem+json responses would be replaced by the web 404 page. CloudFront gets `s3:ListBucket` instead, so a missing page is an honest 404 from S3. `web/out/404.html` still exists for a future Lambda@Edge or origin-group setup.
+9. **The AWS SDK is bundled** into each Lambda (not taken from the runtime), so the version is the one in the lockfile and the tests.
+10. **Lambda `logFormat: JSON`** (was `Text`): Lambda's own START/END/REPORT lines become JSON too; Fastify/Powertools lines are already JSON and pass through unchanged.
+11. **Static-export routing** uses a CloudFront Function (`infra/cdn-rewrite.js`) that maps `/event` → `/event.html`. Dynamic pages use query strings (`/event?id=…`).
+12. **`ci.yml` + `deploy.yml` split**: PR checks and the read-only preview moved from `deploy.yml` into `ci.yml`. `deploy.yml` now builds the web app after `pulumi up` (later milestones bake stack outputs into it).
 
 ## Open questions
 
@@ -32,5 +38,4 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Next steps
 
-- M1: refactor api into layers under `/api`, rename infra files per §14, add CloudFront + S3 + web skeleton, write ci/deploy/destroy/seed workflows.
-- Note for M1: the `dev` stack has never been deployed (preview shows only creates), so Pulumi logical names can change freely.
+- M2: DynamoDB tables + repositories + seed (+ `seed.yml`), events REST routes (ETag, Cache-Control, cursor pagination), Cognito + BFF auth + JWT authorizer, session demo, web: React Query, list/detail/auth pages, component tests.

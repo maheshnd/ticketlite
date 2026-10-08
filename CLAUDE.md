@@ -15,14 +15,15 @@ The full spec is `BUILD-SPEC.md`; build progress (and where to resume) is `PROGR
 - `infra/` — Pulumi TypeScript project, stack `dev`, region `us-east-1`. No `aws:profile` in config: credentials come from the environment.
 - `bootstrap/` — separate Pulumi project (stack `dev`). Creates the GitHub OIDC provider and the two CI roles. The owner runs it once.
 - `scripts/` — one-off scripts run with tsx (seed data, local tables)
-- `.github/workflows/` — CI/CD
+- `.github/workflows/` — `ci.yml` (PR checks + read-only preview), `deploy.yml` (deploy on main), `destroy.yml` (manual teardown)
 - `docs/` — setup guides, concept map, ADRs, runbook
 - `notes/` — study notes per phase
 - `SERVICE-MAP.md` — every AWS service in use → files → why
 
 The repo is **one pnpm workspace** (`pnpm-workspace.yaml`, one root `pnpm-lock.yaml`). Run `pnpm install` at the root.
 Package names are `@ticketlite/<folder>`; run one package's script with `pnpm --filter @ticketlite/api <script>`.
-Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm format`.
+Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm format`, `pnpm check:concepts`.
+Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm check:concepts`, run in CI).
 
 ## Rules
 - **Simplicity first.** One job per file, short files, flat folders. No clever abstractions, extra layers or DI frameworks.

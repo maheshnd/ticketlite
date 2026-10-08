@@ -1,8 +1,8 @@
 # CI/CD one-time setup
 
 After these steps, **GitHub Actions is the only thing that deploys TicketLite**:
-- Pull request to `main`: CI builds, typechecks and posts a `pulumi preview` as a PR comment, using a read-only AWS role.
-- Merge (push) to `main`: CI runs `pulumi up`, using the deploy role.
+- Pull request to `main` (`ci.yml`): format, lint, typecheck, tests, build, then a `pulumi preview` posted as a PR comment, using a read-only AWS role.
+- Merge (push) to `main` (`deploy.yml`): `pulumi up` with the deploy role, then the web app is uploaded to S3, CloudFront is invalidated and a smoke test runs.
 - Manual **destroy** workflow: tears the `dev` stack down to save cost.
 
 You do steps 1–5 once, in this order.
@@ -15,11 +15,11 @@ gh auth status                      # GitHub CLI logged in as maheshnd?
 ```
 
 ## 1. Create the GitHub repo and push
-Commit everything on `main` first (`dist/`, `node_modules/` and `.env` are git-ignored).
+The milestones are already committed on local `main` (`dist/`, `node_modules/` and `.env` are git-ignored).
+Check with `git status` (clean) and `git log --oneline`.
 
 ```bash
 cd ~/Code/ticketlite
-git add -A && git commit -m "phase 1: fastify lambda + CI/CD via GitHub Actions"
 
 # Repo doesn't exist yet:
 gh repo create maheshnd/ticketlite --private --source . --remote origin --push
@@ -72,7 +72,8 @@ Either:
 When it is green:
 ```bash
 cd infra
-curl "$(pulumi stack output apiUrl)/health"       # {"status":"ok"}
+curl "$(pulumi stack output cloudFrontUrl)/api/health"   # {"status":"ok","stage":"dev"}
+open "$(pulumi stack output cloudFrontUrl)"               # the web app
 ```
 
 ### Try the PR flow

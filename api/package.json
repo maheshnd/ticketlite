@@ -10,8 +10,14 @@
   },
   "dependencies": {
     "@fastify/aws-lambda": "^6.4.1",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/swagger": "^9.9.1",
+    "@fastify/swagger-ui": "^6.1.1",
     "@ticketlite/shared": "workspace:*",
-    "fastify": "^5.12.5"
+    "fastify": "^5.12.5",
+    "fastify-type-provider-zod": "^7.0.0",
+    "openapi-types": "^12.1.3",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

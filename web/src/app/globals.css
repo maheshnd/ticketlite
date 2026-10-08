@@ -1,0 +1,8 @@
+/* Tailwind v4: one import brings in the reset, utilities and the default theme. */
+@import "tailwindcss";
+
+/* Visible focus for keyboard users on every interactive element. CONCEPT: accessibility */
+:focus-visible {
+  outline: 3px solid var(--color-indigo-600);
+  outline-offset: 2px;
+}

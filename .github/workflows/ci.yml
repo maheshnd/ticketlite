@@ -1,0 +1,85 @@
+# Pull request checks. Nothing here can change AWS: the preview uses a READ-ONLY role.
+#   checks  -> format, lint, typecheck, unit + component tests, build everything
+#   preview -> `pulumi preview`, posted as a PR comment
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+# Default for every job: no permissions. Each job asks for exactly what it needs.
+permissions: {}
+
+# One run per PR. A new push to the same PR cancels the older, now outdated, run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24" # same major version as the Lambda runtime nodejs24.x
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # lets checkout read the code
+    steps:
+      - uses: actions/checkout@v7
+
+      # Install pnpm (version from "packageManager" in the root package.json), then Node.
+      # setup-node caches the pnpm store, keyed on the root pnpm-lock.yaml.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # Install exactly what the lockfile says. A lockfile that doesn't match package.json fails here.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+      - name: Lint (+ every CONCEPT tag is in docs/CONCEPT-MAP.md)
+        run: pnpm lint && pnpm check:concepts
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit and component tests
+        run: pnpm test
+      - name: Build (Lambda bundles + static web export)
+        run: pnpm build
+
+  preview:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # lets the job request a GitHub OIDC token to log in to AWS
+      contents: read
+      pull-requests: write # lets the Pulumi action comment the preview on the PR
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Pulumi zips the Lambda bundles (api/dist, functions/*/dist), so they must exist.
+      - run: pnpm --filter "!@ticketlite/web" build
+
+      # Swap the GitHub OIDC token for temporary AWS keys of the READ-ONLY preview role.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Show what WOULD change, and comment it on the PR. Nothing is created.
+      - uses: pulumi/actions@v7
+        with:
+          command: preview
+          stack-name: dev
+          work-dir: infra
+          comment-on-pr: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}

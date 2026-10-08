@@ -1,74 +1,23 @@
-# The ONLY way TicketLite gets deployed.
-#   Pull request to main -> build + typecheck + `pulumi preview`, posted as a PR comment (read-only role)
-#   Push to main         -> build + typecheck + `pulumi up` (deploy role)
-#   Manual run           -> same as a push. Only works from main, because the deploy role trusts nothing else.
+# The ONLY way TicketLite gets deployed: a push to main (a merged PR) or a manual run from main.
+#   1. test + build   2. pulumi up   3. upload the web app to S3   4. invalidate CloudFront   5. smoke test
+# Pull requests are checked by ci.yml instead (with a read-only preview).
 name: deploy
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
 
-# Default for every job: no permissions. Each job asks for exactly what it needs.
 permissions: {}
 
 env:
-  NODE_VERSION: "24" # same major version as the Lambda runtime nodejs24.x
+  NODE_VERSION: "24"
 
 jobs:
-  preview:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write # lets the job request a GitHub OIDC token to log in to AWS
-      contents: read # lets checkout read the code
-      pull-requests: write # lets the Pulumi action comment the preview on the PR
-    # One preview per PR. A new push to the same PR cancels the older, now outdated, preview.
-    concurrency:
-      group: preview-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    steps:
-      # Steps 1-4 are identical in both jobs, kept duplicated on purpose so each job reads top to bottom.
-      # Step 1: get the code.
-      - uses: actions/checkout@v7
-
-      # Step 2: install pnpm (the version comes from "packageManager" in the root package.json), then Node (setup-node caches the pnpm store using the root lockfile).
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      # Step 3: install the whole workspace exactly as the root lockfile says.
-      - run: pnpm install --frozen-lockfile
-
-      # Step 4: typecheck every package, then bundle the api into api/dist (Pulumi zips that folder).
-      - run: pnpm typecheck && pnpm --filter @ticketlite/api build
-
-      # Step 5: swap the GitHub OIDC token for temporary AWS keys of the READ-ONLY preview role.
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
-          aws-region: us-east-1
-
-      # Step 6: show what WOULD change, and comment it on the PR. Nothing is created.
-      - uses: pulumi/actions@v7
-        with:
-          command: preview
-          stack-name: dev
-          work-dir: infra
-          comment-on-pr: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
   deploy:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write # OIDC login to AWS
       contents: read
     # Never run two deploys (or a deploy and a destroy) at once: they would fight over the same stack.
     # cancel-in-progress: false lets a running deploy finish instead of killing it halfway.
@@ -77,28 +26,62 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm typecheck && pnpm --filter @ticketlite/api build
+      # Step 1: a last safety net (a push straight to main skips the PR checks), then the Lambda bundles.
+      - run: pnpm typecheck && pnpm test
+      - run: pnpm --filter "!@ticketlite/web" build
 
-      # Step 5: the DEPLOY role. Its trust policy only accepts tokens from the main branch.
+      # Step 2: the DEPLOY role. Its trust policy only accepts tokens from the main branch.
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Step 6: apply the changes for real. The action runs non-interactively, the same as `pulumi up --yes`.
-      - uses: pulumi/actions@v7
+      # Step 3: apply the infrastructure. Non-interactive, the same as `pulumi up --yes`.
+      # Every stack output (cloudFrontUrl, webBucketName, ...) becomes a step output.
+      - id: pulumi
+        uses: pulumi/actions@v7
         with:
           command: up
           stack-name: dev
           work-dir: infra
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      # Step 4: build the web app AFTER pulumi up, because later milestones bake stack outputs
+      # (the AppSync URL, the Cognito domain) into it as NEXT_PUBLIC_* variables.
+      - run: pnpm --filter @ticketlite/web build
+
+      # Step 5: upload with the right cache headers. CONCEPT: cdn
+      #  - _next/* files have a content hash in their name, so they can be cached for a year ("immutable").
+      #  - Everything else (HTML) must be re-checked often: browsers revalidate every time (max-age=0),
+      #    CloudFront keeps it 60s (s-maxage). --delete removes pages that no longer exist.
+      - name: Upload web app to S3
+        env:
+          BUCKET: ${{ steps.pulumi.outputs.webBucketName }}
+        run: |
+          aws s3 sync web/out/_next "s3://$BUCKET/_next" --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync web/out "s3://$BUCKET" --exclude "_next/*" --delete \
+            --cache-control "public,max-age=0,s-maxage=60,must-revalidate"
+
+      # Step 6: drop CloudFront's cached HTML so users get the new pages now, not within 60s.
+      # "/*" counts as ONE invalidation path (the first 1,000 paths a month are free).
+      - name: Invalidate CloudFront
+        run: >
+          aws cloudfront create-invalidation
+          --distribution-id "${{ steps.pulumi.outputs.distributionId }}"
+          --paths "/*"
+
+      # Step 7: post-deploy smoke test through CloudFront. M7 replaces it with Playwright.
+      - name: Smoke test
+        env:
+          URL: ${{ steps.pulumi.outputs.cloudFrontUrl }}
+        run: |
+          curl -fsS "$URL/api/health"
+          curl -fsS "$URL/" | grep -q "TicketLite"

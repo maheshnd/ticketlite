@@ -1,15 +1,15 @@
-import type { FastifyInstance } from "fastify";
+// GET /api/events: list events.
+// Still a hard-coded list in M1. M2 replaces it with a DynamoDB query through a service + repository.
+import type { App } from "../types";
 
-// Hard-coded for Phase 1. A later phase replaces this array with a DynamoDB query.
 const events = [
-  { id: "evt-1", name: "Coldplay Live", city: "Mumbai", date: "2026-12-05" },
-  { id: "evt-2", name: "Tech Conf India", city: "Bengaluru", date: "2027-01-20" },
-  { id: "evt-3", name: "Comedy Night", city: "Pune", date: "2027-02-14" },
+  { eventId: "evt-1", name: "Coldplay Live", city: "Mumbai", startsAt: "2026-12-05T19:00:00Z" },
+  { eventId: "evt-2", name: "Tech Conf India", city: "Bengaluru", startsAt: "2027-01-20T09:00:00Z" },
+  { eventId: "evt-3", name: "Comedy Night", city: "Pune", startsAt: "2027-02-14T19:30:00Z" },
 ];
 
-// GET /events: list all events.
-export function eventsRoutes(app: FastifyInstance) {
+export function eventsRoutes(app: App) {
   app.get("/events", async () => {
-    return events;
+    return { items: events, nextCursor: null };
   });
 }

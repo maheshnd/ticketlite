@@ -1,24 +1,45 @@
+// IAM roles for Lambda functions. Every function gets its OWN role with only the permissions it needs.
+// CONCEPT: least-privilege
 import * as aws from "@pulumi/aws";
+import * as pulumi from "@pulumi/pulumi";
 
-// The IAM role the Lambda function "wears" while it runs.
-// Step 1: the trust policy says WHO may assume the role. Here only the Lambda service can.
-export const lambdaRole = new aws.iam.Role("api-lambda-role", {
-  assumeRolePolicy: JSON.stringify({
-    Version: "2012-10-17",
-    Statement: [
-      {
-        Effect: "Allow",
-        Principal: { Service: "lambda.amazonaws.com" },
-        Action: "sts:AssumeRole",
-      },
-    ],
-  }),
-});
+// A statement in an IAM policy, e.g. { Action: ["dynamodb:GetItem"], Resource: [tableArn] }.
+export type PolicyStatement = {
+  Action: string[];
+  Resource: pulumi.Input<string>[];
+};
 
-// Step 2: the permissions say WHAT the role may do.
-// Least privilege: only write logs to CloudWatch (CreateLogStream, PutLogEvents, ...).
-// When DynamoDB arrives, we add a narrow policy for that one table and nothing more.
-export const basicLogsAttachment = new aws.iam.RolePolicyAttachment("api-lambda-basic-logs", {
-  role: lambdaRole.name,
-  policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
-});
+// Creates one role for one function.
+// Step 1: the trust policy says WHO may wear the role: only the Lambda service.
+// Step 2: two AWS managed policies every function needs: write its logs, send X-Ray traces.
+// Step 3: an inline policy with exactly the extra actions and resources this function uses.
+// Returns the role plus the attachments, so the function can `dependsOn` them (logs are never lost).
+export function createLambdaRole(name: string, statements: PolicyStatement[] = []) {
+  const role = new aws.iam.Role(`${name}-role`, {
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "lambda.amazonaws.com" }),
+  });
+
+  const logs = new aws.iam.RolePolicyAttachment(`${name}-logs`, {
+    role: role.name,
+    policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
+  });
+  const xray = new aws.iam.RolePolicyAttachment(`${name}-xray`, {
+    role: role.name,
+    policyArn: aws.iam.ManagedPolicy.AWSXRayDaemonWriteAccess,
+  });
+
+  const attachments: pulumi.Resource[] = [logs, xray];
+  if (statements.length > 0) {
+    attachments.push(
+      new aws.iam.RolePolicy(`${name}-policy`, {
+        role: role.name,
+        policy: pulumi.jsonStringify({
+          Version: "2012-10-17",
+          Statement: statements.map((s) => ({ Effect: "Allow", ...s })),
+        }),
+      }),
+    );
+  }
+
+  return { role, attachments };
+}

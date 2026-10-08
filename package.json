@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "check:concepts": "tsx scripts/check-concepts.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
