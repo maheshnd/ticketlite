@@ -2,6 +2,7 @@
 // One schema is the single source of truth: the API validates with it and TypeScript types come from it.
 // CONCEPT: schema-validation
 import { z } from "zod";
+import { PageQuerySchema, pageSchema } from "./pagination";
 
 // Step 1: the full Event as stored in DynamoDB and returned by the API.
 export const EventSchema = z.object({
@@ -43,3 +44,13 @@ export const UpdateEventInputSchema = CreateEventInputSchema.partial().extend({
   version: z.number().int().nonnegative(),
 });
 export type UpdateEventInput = z.infer<typeof UpdateEventInputSchema>;
+
+// Step 4: GET /api/events query string and response. `city` is optional: without it we list every
+// published event, soonest first.
+export const ListEventsQuerySchema = PageQuerySchema.extend({
+  city: z.string().min(2).max(60).optional(),
+});
+export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;
+
+export const EventPageSchema = pageSchema(EventSchema);
+export type EventPage = z.infer<typeof EventPageSchema>;

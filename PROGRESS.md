@@ -8,7 +8,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 |---|---|---|
 | M0 | Workspace setup | ✅ done — `pulumi preview`: 10 to create (nothing deployed yet) |
 | M1 | Refactor api/infra, CloudFront + S3 + web skeleton, CI/CD | ✅ done — `pulumi preview`: 28 to create; actionlint clean |
-| M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | todo |
+| M2 | DynamoDB + repositories + seed, events REST, Cognito BFF auth, session demo, web read pages | ✅ done — `pulumi preview`: 53 to create; 52 tests |
 | M3 | Booking saga, idempotency, admin CRUD, poster upload | todo |
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | todo |
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | todo |
@@ -31,11 +31,18 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 10. **Lambda `logFormat: JSON`** (was `Text`): Lambda's own START/END/REPORT lines become JSON too; Fastify/Powertools lines are already JSON and pass through unchanged.
 11. **Static-export routing** uses a CloudFront Function (`infra/cdn-rewrite.js`) that maps `/event` → `/event.html`. Dynamic pages use query strings (`/event?id=…`).
 12. **`ci.yml` + `deploy.yml` split**: PR checks and the read-only preview moved from `deploy.yml` into `ci.yml`. `deploy.yml` now builds the web app after `pulumi up` (later milestones bake stack outputs into it).
+13. **Extra GSI `byStatus` on Events** (PK `status`, SK `startsAt`). The spec only lists `byCity`, but "list all published events" without a city also needs a Query (never a Scan). Documented as a hot-partition trade-off.
+14. **`http-api.ts` split into `http-api.ts` + `http-routes.ts`** to avoid an import cycle (CloudFront → API URL, Cognito → CloudFront URL, routes → Cognito authorizer).
+15. **The API also verifies JWTs** (`aws-jwt-verify`) even behind API Gateway's JWT authorizer: defense in depth, and it makes local dev work with no API Gateway.
+16. **One Cognito app client, no secret**, flows `USER_PASSWORD_AUTH` + `REFRESH_TOKEN_AUTH` + code/PKCE. Refresh-token rotation stays off (Cognito then returns no new refresh token on refresh).
+17. **MSW 3** renamed `onUnhandledRequest` to `onUnhandledFrame`.
+18. **Root `package.json` is `"type": "module"`** so `tsx` runs the scripts as ESM (top-level await).
 
 ## Open questions
 
-- None yet.
+- None yet. (Untested until the first deploy: real Cognito login, managed-login PKCE redirect, CloudFront routing. The unit tests mock these.)
 
 ## Next steps
 
-- M2: DynamoDB tables + repositories + seed (+ `seed.yml`), events REST routes (ETag, Cache-Control, cursor pagination), Cognito + BFF auth + JWT authorizer, session demo, web: React Query, list/detail/auth pages, component tests.
+- M3: idempotency service, `POST/GET /api/bookings`, Step Functions saga + 4 saga Lambdas (functions/ package + esbuild per function), admin create/update with optimistic locking, presigned poster POST + poster-processor, booking/my-bookings/admin pages.
+- Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.

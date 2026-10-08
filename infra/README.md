@@ -17,11 +17,18 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `iam.ts` | `createLambdaRole()`: one least-privilege role per function |
 | `node-function.ts` | `createNodeFunction()`: log group + role + arm64 Node 24 Lambda with X-Ray |
 | `lambdas.ts` | The api Lambda, its `live` alias, provisioned concurrency (flag) |
-| `http-api.ts` | HTTP API, explicit routes, stage throttling, access logs |
+| `dynamodb.ts` | Events, Bookings, IdempotencyKeys, Sessions, Organizers tables (GSIs, streams, TTL) |
+| `cognito.ts` | User pool, `admin` group, managed login domain, app client, branding |
+| `http-api.ts` | HTTP API (local-only CORS), stage throttling, access logs |
+| `http-routes.ts` | Lambda integration, public routes, JWT authorizer + protected routes |
 | `storage.ts` | `web` and `posters` S3 buckets (private) |
 | `cdn.ts` | CloudFront: OAC, S3 + API origins, security headers, bucket policies |
 | `cdn-rewrite.js` | CloudFront Function: `/event` → `/event.html` |
 
 ## Outputs
 
-`cloudFrontUrl`, `distributionId`, `apiUrl`, `webBucketName`, `postersBucketName`.
+`cloudFrontUrl`, `distributionId`, `apiUrl`, `webBucketName`, `postersBucketName`, `userPoolId`,
+`userPoolClientId`, `cognitoDomain`, `eventsTableName`, `organizersTableName`.
+
+Why `http-api.ts` and `http-routes.ts` are two files: CloudFront needs the API's URL, Cognito needs
+CloudFront's URL (OAuth callback), and the routes need Cognito (authorizer). One file would be an import cycle.

@@ -14,8 +14,11 @@ Needs Node 24, pnpm 10.33.2 (`corepack enable`) and Docker.
 ```bash
 pnpm install                       # one install for the whole workspace
 docker compose up -d               # Redis, OpenSearch, DynamoDB Local
+pnpm db:local                      # create the tables in DynamoDB Local and add sample events
+cp api/.env.example api/.env       # local settings (add Cognito IDs from `pulumi stack output` for login)
 pnpm typecheck && pnpm lint && pnpm test
-pnpm --filter @ticketlite/api dev  # API on http://localhost:3000
+pnpm --filter @ticketlite/api dev  # API on http://localhost:3000 (docs at /api/docs)
+NEXT_PUBLIC_API_URL=http://localhost:3000 pnpm --filter @ticketlite/web dev   # web on http://localhost:3001
 ```
 
 ## How deploys work

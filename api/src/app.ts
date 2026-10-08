@@ -1,6 +1,7 @@
 // Builds the Fastify app but does NOT start a server.
 // Two entry points share it: local.ts listens on a port, and lambda.ts hands it to Lambda.
 // Layers: routes/ handle HTTP -> services/ hold the logic -> repositories/ talk to DynamoDB.
+import cookie from "@fastify/cookie";
 import Fastify, { LogController } from "fastify";
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from "fastify-type-provider-zod";
 import { config } from "./config";
@@ -11,6 +12,10 @@ import { registerSwagger } from "./plugins/swagger";
 import { healthRoutes } from "./routes/health";
 import { eventsRoutes } from "./routes/events";
 import { copyInfoRoutes } from "./routes/copy-info";
+import { authRoutes } from "./routes/auth";
+import { oauthRoutes } from "./routes/oauth";
+import { meRoutes } from "./routes/me";
+import { demoSessionRoutes } from "./routes/demo-session";
 
 export async function buildApp() {
   // Step 1: the Fastify instance. Logs are JSON lines (CloudWatch Logs Insights can query any field),
@@ -32,6 +37,7 @@ export async function buildApp() {
   // Step 3: cross-cutting plugins, registered before the routes so they apply to all of them.
   registerCorrelationId(app);
   registerErrorHandler(app);
+  await app.register(cookie); // parses the Cookie header into request.cookies; adds reply.setCookie
   await registerLocalCors(app);
   await registerSwagger(app);
 
@@ -41,6 +47,10 @@ export async function buildApp() {
       healthRoutes(api);
       copyInfoRoutes(api);
       eventsRoutes(api);
+      authRoutes(api);
+      oauthRoutes(api);
+      meRoutes(api);
+      demoSessionRoutes(api);
     },
     { prefix: "/api" },
   );

@@ -2,3 +2,5 @@
 // so other packages write `import { EventSchema } from "@ticketlite/shared"`.
 export * from "./event";
 export * from "./pagination";
+export * from "./auth";
+export * from "./organizer";

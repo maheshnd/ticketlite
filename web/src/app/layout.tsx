@@ -1,7 +1,8 @@
 // Root layout: the HTML shell shared by every page (language, skip link, header, main landmark).
 // Accessibility starts here: <html lang>, a "skip to content" link and one <main> per page.
 import type { Metadata } from "next";
-import Link from "next/link";
+import { NavBar } from "../components/NavBar";
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,16 +21,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <header className="border-b border-slate-200 bg-white">
-          <nav aria-label="Main" className="mx-auto flex max-w-5xl items-center gap-6 p-4">
-            <Link href="/" className="text-lg font-bold text-indigo-700">
-              TicketLite
-            </Link>
-          </nav>
-        </header>
-        <main id="main" className="mx-auto max-w-5xl p-4">
-          {children}
-        </main>
+        <Providers>
+          <header className="border-b border-slate-200 bg-white">
+            <NavBar />
+          </header>
+          <main id="main" className="mx-auto max-w-5xl p-4">
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
   );

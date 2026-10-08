@@ -1,6 +1,6 @@
 // Tests for the Event schemas: the rules every package relies on.
 import { describe, expect, it } from "vitest";
-import { CreateEventInputSchema, UpdateEventInputSchema } from "./event";
+import { CreateEventInputSchema, ListEventsQuerySchema, UpdateEventInputSchema } from "./event";
 import { PageQuerySchema } from "./pagination";
 
 const validInput = {
@@ -40,5 +40,11 @@ describe("PageQuerySchema", () => {
   it("turns the limit from the URL into a number and defaults it to 20", () => {
     expect(PageQuerySchema.parse({ limit: "5" }).limit).toBe(5);
     expect(PageQuerySchema.parse({}).limit).toBe(20);
+  });
+});
+
+describe("ListEventsQuerySchema", () => {
+  it("allows listing without a city", () => {
+    expect(ListEventsQuerySchema.parse({})).toEqual({ limit: 20 });
   });
 });

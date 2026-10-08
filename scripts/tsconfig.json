@@ -1,0 +1,6 @@
+{
+  // Type checking for the one-off scripts (run with tsx, which strips types itself).
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["."]
+}

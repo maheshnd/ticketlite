@@ -11,6 +11,21 @@ const EnvSchema = z.object({
   // The Next.js dev server. CORS is only turned on locally: in the cloud, CloudFront serves the web
   // app and the API from ONE origin, so the browser never makes a cross-origin call. CONCEPT: same-origin
   LOCAL_WEB_ORIGIN: z.url().default("http://localhost:3001"),
+  AWS_REGION: z.string().default("us-east-1"), // set by Lambda itself in the cloud
+  // Only set locally: points the SDK at DynamoDB Local (docker-compose) instead of AWS.
+  DYNAMODB_ENDPOINT: z.url().optional(),
+  // Table names come from Pulumi in the cloud. The defaults match scripts/create-local-tables.ts.
+  EVENTS_TABLE: z.string().default("Events"),
+  ORGANIZERS_TABLE: z.string().default("Organizers"),
+  SESSIONS_TABLE: z.string().default("Sessions"),
+  // Cognito IDs (not secrets). Empty locally until you copy them from `pulumi stack output` into api/.env.
+  USER_POOL_ID: z.string().default(""),
+  USER_POOL_CLIENT_ID: z.string().default(""),
+  COGNITO_DOMAIN_URL: z.string().default(""),
+  // The public URL of the web app: CloudFront in the cloud, the Next.js dev server locally.
+  APP_URL: z.url().default("http://localhost:3001"),
+  // Where the browser reaches THIS API. The same as APP_URL in the cloud (CloudFront serves both).
+  API_PUBLIC_URL: z.url().default("http://localhost:3000"),
 });
 
 // Step 2: parse once. A typo in a variable name or value throws here, at startup.
@@ -22,4 +37,18 @@ export const config = {
   isLocal: env.STAGE === "local",
   logLevel: env.LOG_LEVEL,
   localWebOrigin: env.LOCAL_WEB_ORIGIN,
+  region: env.AWS_REGION,
+  dynamodbEndpoint: env.DYNAMODB_ENDPOINT,
+  tables: {
+    events: env.EVENTS_TABLE,
+    organizers: env.ORGANIZERS_TABLE,
+    sessions: env.SESSIONS_TABLE,
+  },
+  cognito: {
+    userPoolId: env.USER_POOL_ID,
+    clientId: env.USER_POOL_CLIENT_ID,
+    domainUrl: env.COGNITO_DOMAIN_URL,
+  },
+  appUrl: env.APP_URL,
+  apiPublicUrl: env.API_PUBLIC_URL,
 };

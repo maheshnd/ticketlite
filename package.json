@@ -1,22 +1,27 @@
 {
   "name": "ticketlite",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "pnpm -r --if-present typecheck && tsc --noEmit -p scripts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
     "seed": "tsx scripts/seed.ts",
-    "check:concepts": "tsx scripts/check-concepts.ts"
+    "check:concepts": "tsx scripts/check-concepts.ts",
+    "db:local": "DYNAMODB_ENDPOINT=http://localhost:8000 tsx scripts/create-local-tables.ts && DYNAMODB_ENDPOINT=http://localhost:8000 tsx scripts/seed.ts"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1148.0",
+    "@aws-sdk/lib-dynamodb": "^3.1148.0",
     "@eslint/js": "^10.0.1",
+    "@ticketlite/shared": "workspace:*",
     "@types/node": "^24.19.1",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
