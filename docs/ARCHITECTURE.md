@@ -7,6 +7,10 @@ real-time seat counts. Everything is defined in Pulumi (`infra/`) and deployed o
 
 Diagrams are Mermaid, so they render on GitHub and in VS Code (with a Mermaid preview extension).
 
+**Detailed diagrams:** [docs/diagrams/](diagrams/README.md) has 9 draw.io diagrams with official AWS icons (overall,
+request path + caching, auth, booking saga, real-time GraphQL, event-driven, search, security + observability, CI/CD),
+each with a numbered step table that names the files doing each step.
+
 ## 1. Overview
 
 ```mermaid

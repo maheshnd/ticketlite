@@ -12,7 +12,7 @@ Next.js + React Query, Pulumi and GitHub Actions. Every file is commented for st
 
 | If you want to… | Read |
 |---|---|
-| See the big picture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| See the big picture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/diagrams/](docs/diagrams/README.md) (9 detailed draw.io diagrams with step-by-step walkthroughs) |
 | Know which AWS service does what, and where | [SERVICE-MAP.md](SERVICE-MAP.md) |
 | Study a concept (and break it on purpose) | [docs/CONCEPT-MAP.md](docs/CONCEPT-MAP.md), [docs/LEARNING-PATH.md](docs/LEARNING-PATH.md) |
 | Understand why it is built this way | [docs/adr/](docs/adr/README.md) |
@@ -93,5 +93,5 @@ anywhere: GitHub OIDC → short-lived role credentials. Paid services sit behind
 | `infra/` | Pulumi program, one file per service area |
 | `bootstrap/` | One-time Pulumi stack: GitHub OIDC + CI roles |
 | `scripts/` | Seed data, local tables, local search backfill |
-| `docs/` | Architecture, concept map, ADRs, runbook, security, costs |
+| `docs/` | Architecture (+ draw.io diagrams in `docs/diagrams/`), concept map, ADRs, runbook, security, costs |
 | `notes/` | Personal study notes |

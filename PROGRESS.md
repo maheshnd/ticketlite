@@ -16,6 +16,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M7 | Playwright + axe, all docs, final pass | ✅ done — `pulumi preview`: 167 to create (172 with a custom domain); 116 unit/component tests + 8 E2E journeys with axe (0 violations) |
 | — | Readability pass (BUILD-SPEC §0) | ✅ done — no file over 150 lines, no function over ~40, nesting ≤ 3, every file has a header, 4 new CONCEPT tags (110 total); tests unchanged (116 + 8 E2E); `pulumi preview`: 167 to create |
 | — | Local development (`pnpm dev`, `pnpm dev:env`, `pnpm dev:mock`) | ✅ done — offline mode verified end to end (DynamoDB Local seeded, API + web, browser loads events); `dev:env` verified with simulated outputs (stack not deployed yet); previews: infra 167, bootstrap 6 to create, no errors |
+| — | Architecture diagrams (`docs/diagrams/`) | ✅ done — 9 draw.io diagrams (`.drawio.svg`, AWS 2024 icons) drawn from the code, with a step-by-step walkthrough; every resource type in `infra/` + `bootstrap/` checked against them |
 
 ## Decisions and deviations from the spec
 
@@ -83,6 +84,8 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Open questions
 
+- **api Lambda IAM is incomplete** (found while drawing the diagrams). `infra/lambdas.ts` grants only Events, Organizers and Sessions, but the api also writes Bookings + IdempotencyKeys, calls `states:StartExecution`, `events:PutEvents`, presigns S3 POSTs (`s3:PutObject` on `posters/*`) and, with flags on, reads the Redis secret, calls OpenSearch and the Data API (`sql.apiStatements` is built but unused). Deployed, bookings and poster uploads will fail with AccessDenied.
+- **`GET /api/search` and `GET /api/admin/reports` are missing from `infra/http-routes.ts`**, so API Gateway returns 404 for them in AWS (they work locally).
 - None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins).
 
 ## Next steps
