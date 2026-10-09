@@ -1,5 +1,6 @@
 // Session-based auth demo: compare with the JWT routes. See services/session-service.ts for the trade-offs.
 // The cookie `sid` holds only a random id; the session data lives in the DynamoDB Sessions table.
+// CONCEPT: sessions-vs-jwt
 import { LoginInputSchema } from "@ticketlite/shared";
 import { endSession, readSession, startSession } from "../services/session-service";
 import type { App } from "../types";

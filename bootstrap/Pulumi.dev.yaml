@@ -1,3 +1,4 @@
+# Config for the bootstrap `dev` stack: region and the only GitHub repo the CI roles trust.
 config:
   aws:region: us-east-1
   # "<owner>/<repo>" on GitHub. The IAM trust policies only accept tokens from this repo.

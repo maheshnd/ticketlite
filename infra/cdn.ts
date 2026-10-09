@@ -1,65 +1,22 @@
 // CloudFront: the ONE public entry point. It serves the web app from S3 and forwards /api/* to API
 // Gateway, so the browser sees a single origin: first-party cookies, no CORS. CONCEPT: same-origin, cdn
-import * as fs from "node:fs";
-import * as path from "node:path";
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { httpApi } from "./http-api";
 import { postersBucket, webBucket } from "./storage";
 import { customDomain } from "./domain";
 import { webAcl } from "./waf";
+import {
+  ALL_VIEWER_EXCEPT_HOST,
+  CACHING_DISABLED,
+  CACHING_OPTIMIZED,
+  eventsListCache,
+  oac,
+  rewrite,
+  securityHeaders,
+} from "./cdn-policies";
 
-// AWS managed policies (fixed IDs, the same in every account):
-const CACHING_OPTIMIZED = "658327ea-f89d-4fab-a63d-7e88639e58f6"; // honours the origin's Cache-Control, gzip/brotli
-const CACHING_DISABLED = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"; // never cache (authenticated API calls)
-const ALL_VIEWER_EXCEPT_HOST = "b689b0a8-53d0-40ab-baf2-68738e2966ac"; // forward headers, cookies, query strings
-
-// Step 1: Origin Access Control. CloudFront signs its S3 requests (SigV4), and the bucket policies
-// below accept only signed requests from THIS distribution. CONCEPT: origin-access-control
-const oac = new aws.cloudfront.OriginAccessControl("s3-oac", {
-  originAccessControlOriginType: "s3",
-  signingBehavior: "always",
-  signingProtocol: "sigv4",
-});
-
-// Step 2: the URL rewrite function for static-export pages (see cdn-rewrite.js).
-const rewrite = new aws.cloudfront.Function("html-rewrite", {
-  runtime: "cloudfront-js-2.0",
-  code: fs.readFileSync(path.join(__dirname, "cdn-rewrite.js"), "utf8"),
-  publish: true,
-});
-
-// Step 3: security headers on every response. CONCEPT: security-headers, xss
-// The CSP allows only our own origin, plus AppSync (GraphQL + real-time) and direct poster uploads
-// to S3. 'unsafe-inline' scripts: Next.js static export inlines small bootstrap scripts.
-const csp = pulumi.interpolate`default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.appsync-api.us-east-1.amazonaws.com wss://*.appsync-realtime-api.us-east-1.amazonaws.com https://${postersBucket.bucketRegionalDomainName}; form-action 'self' https://*.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`;
-const securityHeaders = new aws.cloudfront.ResponseHeadersPolicy("security-headers", {
-  securityHeadersConfig: {
-    strictTransportSecurity: { accessControlMaxAgeSec: 63072000, includeSubdomains: true, override: true },
-    contentTypeOptions: { override: true }, // X-Content-Type-Options: nosniff
-    frameOptions: { frameOption: "DENY", override: true }, // no clickjacking via <iframe>
-    referrerPolicy: { referrerPolicy: "strict-origin-when-cross-origin", override: true },
-    contentSecurityPolicy: { contentSecurityPolicy: csp, override: true },
-  },
-});
-
-// Step 4: a short cache for the PUBLIC events list. Every visitor sees the same list, so CloudFront can
-// answer most requests itself for 30 seconds; the cache key includes the query string (?city=&cursor=),
-// never headers or cookies, so it can't mix up users. Authenticated routes stay uncached. CONCEPT: cdn
-const eventsListCache = new aws.cloudfront.CachePolicy("api-events-30s", {
-  minTtl: 0,
-  defaultTtl: 30,
-  maxTtl: 30,
-  parametersInCacheKeyAndForwardedToOrigin: {
-    queryStringsConfig: { queryStringBehavior: "all" },
-    headersConfig: { headerBehavior: "none" },
-    cookiesConfig: { cookieBehavior: "none" },
-    enableAcceptEncodingGzip: true,
-    enableAcceptEncodingBrotli: true,
-  },
-});
-
-// Step 5: the distribution.
+// Step 1: the distribution (its OAC, rewrite function and policies are in cdn-policies.ts).
 export const distribution = new aws.cloudfront.Distribution("cdn", {
   enabled: true,
   isIpv6Enabled: true,
@@ -150,7 +107,7 @@ export const distribution = new aws.cloudfront.Distribution("cdn", {
     : { cloudfrontDefaultCertificate: true },
 });
 
-// With a custom domain: point it at CloudFront. Alias records are free and follow CloudFront's IPs (A + AAAA for IPv6).
+// Step 2: with a custom domain, point it at CloudFront. Alias records are free and follow CloudFront's IPs (A + AAAA for IPv6).
 if (customDomain) {
   for (const type of ["A", "AAAA"]) {
     new aws.route53.Record(`cdn-alias-${type}`, {
@@ -164,7 +121,7 @@ if (customDomain) {
   }
 }
 
-// Step 6: bucket policies: "only this distribution may read". AWS:SourceArn pins it to our distribution,
+// Step 3: bucket policies: "only this distribution may read". AWS:SourceArn pins it to our distribution,
 // so another CloudFront distribution (even in our account) can't read the buckets.
 function allowCloudFront(name: string, bucket: aws.s3.Bucket) {
   new aws.s3.BucketPolicy(`${name}-cloudfront-read`, {

@@ -1,5 +1,6 @@
 "use client";
 // The event page's own error boundary: an error here keeps the header and navigation working.
+// CONCEPT: error-boundaries
 export default function EventError({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <section role="alert" className="flex flex-col gap-3">

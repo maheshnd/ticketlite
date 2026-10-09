@@ -1,5 +1,6 @@
 // Runs a shared Zod schema against form values and returns one message per field (the first problem).
 // The API validates with the same schema, so the browser and the server always agree.
+// CONCEPT: schema-validation
 import type { z } from "zod";
 
 export type FieldErrors = Record<string, string>;

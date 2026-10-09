@@ -1,6 +1,6 @@
 "use client";
 // Poster upload: choose a file, it goes straight to S3 (presigned POST), then poster-processor validates it
-// and attaches it to the event a few seconds later (asynchronously).
+// and attaches it to the event a few seconds later (asynchronously). CONCEPT: presigned-urls
 import { POSTER_MAX_BYTES } from "@ticketlite/shared";
 import { useState } from "react";
 import { FormAlert } from "../../components/FormAlert";

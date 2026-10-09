@@ -1,5 +1,5 @@
 // Turns a Bookings stream image (a DynamoDB booking) into the two SQL rows the reports need.
-// Pure function: easy to test without a database.
+// Pure function: easy to test without a database. CONCEPT: normalization
 import type { Booking } from "@ticketlite/shared";
 
 export function toRows(booking: Booking) {

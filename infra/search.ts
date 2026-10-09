@@ -5,14 +5,15 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { flags, stage } from "./config";
 import { eventsTable } from "./dynamodb";
+import { streamReadAccess, type PolicyStatement } from "./iam";
 import { createNodeFunction } from "./node-function";
 
 const accountId = aws.getCallerIdentityOutput().accountId;
 
-function createSearch() {
-  // Step 1: the smallest domain: one t3.small node, 10 GB gp3, OpenSearch 3.7 (the newest AWS offers).
-  // Encryption at rest + node-to-node + HTTPS only. One node = no replicas and no high availability:
-  // fine for learning; production uses 3 dedicated masters + data nodes across AZs.
+// Step 1: the smallest domain: one t3.small node, 10 GB gp3, OpenSearch 3.7 (the newest AWS offers).
+// Encryption at rest + node-to-node + HTTPS only. One node = no replicas and no high availability:
+// fine for learning; production uses 3 dedicated masters + data nodes across AZs.
+function createDomain() {
   const domain = new aws.opensearch.Domain("search", {
     domainName: `ticketlite-${stage}`,
     engineVersion: "OpenSearch_3.7",
@@ -35,13 +36,15 @@ function createSearch() {
       ],
     }),
   });
-  const endpoint = pulumi.interpolate`https://${domain.endpoint}`;
-  const httpAccess = {
+  const httpAccess: PolicyStatement = {
     Action: ["es:ESHttpGet", "es:ESHttpHead", "es:ESHttpPut", "es:ESHttpPost", "es:ESHttpDelete"],
     Resource: [pulumi.interpolate`${domain.arn}/*`],
   };
+  return { endpoint: pulumi.interpolate`https://${domain.endpoint}`, httpAccess };
+}
 
-  // Step 2: the indexer, fed by the Events table's stream.
+// Step 2: the indexer, fed by the Events table's stream. Returns its failure queue (alarmed in observability.ts).
+function createIndexer(endpoint: pulumi.Output<string>, httpAccess: PolicyStatement) {
   const failures = new aws.sqs.Queue("search-indexer-failures", {
     messageRetentionSeconds: 14 * 24 * 60 * 60,
     sqsManagedSseEnabled: true,
@@ -51,20 +54,12 @@ function createSearch() {
     environment: { OPENSEARCH_ENDPOINT: endpoint },
     statements: [
       httpAccess,
-      {
-        Action: [
-          "dynamodb:GetRecords",
-          "dynamodb:GetShardIterator",
-          "dynamodb:DescribeStream",
-          "dynamodb:ListStreams",
-        ],
-        Resource: [eventsTable.streamArn],
-      },
+      streamReadAccess(eventsTable.streamArn),
       { Action: ["sqs:SendMessage"], Resource: [failures.arn] },
     ],
   });
 
-  // Step 3: stream -> Lambda. Poll-based and ORDERED per shard, so a failing record blocks the ones after
+  // Stream -> Lambda. Poll-based and ORDERED per shard, so a failing record blocks the ones after
   // it; these settings stop one poison record from blocking forever. CONCEPT: poison-message
   new aws.lambda.EventSourceMapping("events-stream-to-indexer", {
     eventSourceArn: eventsTable.streamArn,
@@ -77,7 +72,12 @@ function createSearch() {
     functionResponseTypes: ["ReportBatchItemFailures"],
     destinationConfig: { onFailure: { destinationArn: failures.arn } }, // metadata of records that gave up
   });
+  return failures;
+}
 
+function createSearch() {
+  const { endpoint, httpAccess } = createDomain();
+  const failures = createIndexer(endpoint, httpAccess);
   return { endpoint, httpAccess, failures };
 }
 

@@ -1,3 +1,6 @@
+// The two IAM roles GitHub Actions may assume through OIDC: a read-only preview role for pull requests and
+// a deploy role for the main branch only. The trust policy (who may assume) is the real guardrail.
+// CONCEPT: oidc, least-privilege
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import { githubOidc } from "./oidc";

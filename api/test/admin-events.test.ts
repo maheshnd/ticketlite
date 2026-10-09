@@ -31,7 +31,7 @@ const {
   ...newEvent
 } = sampleEvent;
 
-describe("admin events", () => {
+describe("admin events: access and create", () => {
   it("returns 403 for a logged-in user who is not in the admin group", async () => {
     vi.mocked(jwt.verifyAccessToken).mockResolvedValue({ sub: "user-1", groups: [] });
     const res = await app.inject({ method: "POST", url: "/api/admin/events", headers, payload: newEvent });
@@ -44,7 +44,9 @@ describe("admin events", () => {
     expect(res.statusCode).toBe(201);
     expect(res.json()).toMatchObject({ version: 1, availableSeats: newEvent.totalSeats });
   });
+});
 
+describe("admin events: optimistic locking", () => {
   it("returns 409 when the event version is stale", async () => {
     ddbMock.on(GetCommand).resolves({ Item: { ...sampleEvent, version: 3 } });
     ddbMock
@@ -74,7 +76,9 @@ describe("admin events", () => {
     expect(input.ConditionExpression).toContain("#version = :expected");
     expect(input.ExpressionAttributeValues).toMatchObject({ ":expected": 1, ":delta": 10 });
   });
+});
 
+describe("admin events: seat changes", () => {
   it("refuses to cut totalSeats below the seats already sold", async () => {
     ddbMock.on(GetCommand).resolves({ Item: sampleEvent }); // 58 sold
     const res = await app.inject({
@@ -85,7 +89,9 @@ describe("admin events", () => {
     });
     expect(res.statusCode).toBe(400);
   });
+});
 
+describe("admin poster uploads", () => {
   it("presigns a poster upload limited to the declared type and 2 MB", async () => {
     ddbMock.on(GetCommand).resolves({ Item: sampleEvent });
     const res = await app.inject({

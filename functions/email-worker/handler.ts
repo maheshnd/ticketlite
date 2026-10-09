@@ -25,14 +25,16 @@ type BookingConfirmed = {
   correlationId: string;
 };
 
-async function sendOnce(detail: BookingConfirmed) {
-  // Step 1: already sent? (A retry or a duplicate delivery.) Then there is nothing to do.
+// Step 1: already sent? (A retry or a duplicate delivery.)
+async function alreadySent(bookingId: string): Promise<boolean> {
   const booking = await ddb.send(
-    new GetCommand({ TableName: BOOKINGS_TABLE, Key: { bookingId: detail.bookingId }, ConsistentRead: true }),
+    new GetCommand({ TableName: BOOKINGS_TABLE, Key: { bookingId }, ConsistentRead: true }),
   );
-  if (booking.Item?.emailSentAt) return logger.info("email already sent", { bookingId: detail.bookingId });
+  return Boolean(booking.Item?.emailSentAt);
+}
 
-  // Step 2: send.
+// Step 2: send the email through SES.
+async function sendEmail(detail: BookingConfirmed) {
   await ses.send(
     new SendEmailCommand({
       FromEmailAddress: TO,
@@ -49,22 +51,31 @@ async function sendOnce(detail: BookingConfirmed) {
       },
     }),
   );
+}
 
-  // Step 3: mark it. If the Lambda crashes between steps 2 and 3, the retry sends a second email. That
-  // window is tiny; true exactly-once delivery isn't possible with email, so we accept "rarely twice".
-  await ddb
-    .send(
+// Step 3: mark it. If the Lambda crashes between steps 2 and 3, the retry sends a second email. That
+// window is tiny; true exactly-once delivery isn't possible with email, so we accept "rarely twice".
+async function markSent(bookingId: string) {
+  try {
+    await ddb.send(
       new UpdateCommand({
         TableName: BOOKINGS_TABLE,
-        Key: { bookingId: detail.bookingId },
+        Key: { bookingId },
         UpdateExpression: "SET emailSentAt = :now",
         ConditionExpression: "attribute_not_exists(emailSentAt)",
         ExpressionAttributeValues: { ":now": new Date().toISOString() },
       }),
-    )
-    .catch((error) => {
-      if (!(error instanceof ConditionalCheckFailedException)) throw error;
-    });
+    );
+  } catch (error) {
+    if (!(error instanceof ConditionalCheckFailedException)) throw error; // already marked: fine
+  }
+}
+
+async function sendOnce(detail: BookingConfirmed) {
+  if (await alreadySent(detail.bookingId))
+    return logger.info("email already sent", { bookingId: detail.bookingId });
+  await sendEmail(detail);
+  await markSent(detail.bookingId);
   logger.info("confirmation email sent", { bookingId: detail.bookingId });
 }
 

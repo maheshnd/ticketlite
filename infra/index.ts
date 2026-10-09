@@ -8,6 +8,7 @@ import "./observability";
 import { partnerApiUrl as partnerUrl, partnerKey } from "./partner-api";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { apiKey, graphqlUrl } from "./appsync";
+import "./appsync-resolvers";
 import * as pulumi from "@pulumi/pulumi";
 import { eventsTable, organizersTable } from "./dynamodb";
 import { appUrl, distribution } from "./cdn";

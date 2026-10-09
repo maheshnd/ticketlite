@@ -1,7 +1,7 @@
 # Caching and rate limiting
 
 Code: `api/src/lib/cache.ts`, `api/src/lib/redis.ts`, `api/src/services/event-cache.ts`,
-`api/src/services/rate-limit-service.ts`, `infra/cdn.ts`, `infra/http-routes.ts`, `web/src/lib/query-client.ts`.
+`api/src/services/rate-limit-service.ts`, `infra/cdn.ts`, `infra/cdn-policies.ts`, `infra/http-routes.ts`, `web/src/lib/query-client.ts`.
 
 ## Where each cache sits
 

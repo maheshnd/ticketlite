@@ -1,4 +1,5 @@
 // Poster uploads: check the event exists, pick a key, and presign a POST limited to one image file.
+// CONCEPT: presigned-urls
 import { randomUUID } from "node:crypto";
 import { POSTER_MAX_BYTES, type PosterUploadInput, type PosterUploadResponse } from "@ticketlite/shared";
 import { notFound } from "../errors";

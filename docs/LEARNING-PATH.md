@@ -30,7 +30,7 @@ Setup once: `pnpm install`, `docker compose up -d`, `pnpm db:local`, `pnpm --fil
   with `maxBatchSize` 20 vs 0 (N+1). Break a field name in `OrganizerName.tsx` and watch `typecheck` fail.
 
 ## 6. AppSync
-- Read: `infra/appsync.ts`, `graphql/resolvers/*`, `functions/shared/appsync.ts`, `web/src/lib/appsync-realtime.ts`, ADR 0006.
+- Read: `infra/appsync.ts`, `infra/appsync-resolvers.ts`, `graphql/resolvers/*`, `functions/shared/appsync.ts`, `web/src/lib/appsync-realtime.ts`, ADR 0006.
 - Try: `AWS_PROFILE=ticketlite pnpm --filter @ticketlite/graphql evaluate`. Open an event in two tabs and book in one.
   Call `publishSeatUpdate` with the API key (Unauthorized: IAM only).
 

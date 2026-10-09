@@ -1,6 +1,7 @@
 // A tiny form helper shared by the forms: values, field errors, a form-level error, submitting state.
 // On submit it validates with the shared Zod schema first; only valid data reaches `onValid`.
 // Inputs always hold strings; `prepare` converts them (e.g. "499" -> 499) before validation.
+// CONCEPT: schema-validation
 import { useState } from "react";
 import type { z } from "zod";
 import { ApiError } from "../../lib/api-client";

@@ -3,6 +3,7 @@
 import { ForgotInputSchema } from "@ticketlite/shared";
 import { useRouter } from "next/navigation";
 import { FormAlert } from "../../components/FormAlert";
+import { SubmitButton } from "../../components/SubmitButton";
 import { TextField } from "../../components/TextField";
 import { apiFetch } from "../../lib/api-client";
 import { useForm } from "./use-form";
@@ -26,13 +27,7 @@ export function ForgotForm() {
         error={form.errors.email}
         onChange={form.setValue("email")}
       />
-      <button
-        type="submit"
-        disabled={form.submitting}
-        className="rounded bg-indigo-700 px-4 py-2 text-white disabled:opacity-60"
-      >
-        Send reset code
-      </button>
+      <SubmitButton submitting={form.submitting}>Send reset code</SubmitButton>
     </form>
   );
 }

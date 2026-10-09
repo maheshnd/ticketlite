@@ -20,6 +20,14 @@ export class ApiError extends Error {
   }
 }
 
+// The message to show for a failed request: the API's problem+json "detail" (written for humans),
+// otherwise `fallback`, otherwise the raw error message. null when there is no error.
+export function errorMessage(error: Error | null, fallback?: string): string | null {
+  if (!error) return null;
+  if (error instanceof ApiError) return error.detail;
+  return fallback ?? error.message;
+}
+
 type Options = { method?: string; body?: unknown; headers?: Record<string, string>; retryOn401?: boolean };
 
 export async function apiFetch<T>(path: string, options: Options = {}): Promise<T> {
@@ -58,21 +66,32 @@ export async function apiFetch<T>(path: string, options: Options = {}): Promise<
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
-// Several requests may hit 401 at the same moment; they all share ONE refresh call.
-let refreshing: Promise<string | null> | null = null;
+// Asks the API for a new access token using the HttpOnly refresh cookie, and stores it (null = logged out).
+async function requestNewAccessToken(): Promise<string | null> {
+  let token: string | null = null;
+  try {
+    const tokens = await apiFetch<TokenResponse>("/api/auth/refresh", {
+      method: "POST",
+      headers: { "x-csrf": "1" }, // CONCEPT: csrf
+      retryOn401: false,
+    });
+    token = tokens.accessToken;
+  } catch {
+    // no valid refresh cookie = logged out
+  }
+  setAccessToken(token);
+  return token;
+}
+
+// Several requests may hit 401 at the same moment; they all share ONE refresh call: the first caller
+// starts it, the others get the same promise. When it settles, the next 401 may start a new one.
+let refreshInFlight: Promise<string | null> | null = null;
 
 export function refreshAccessToken(): Promise<string | null> {
-  refreshing ??= apiFetch<TokenResponse>("/api/auth/refresh", {
-    method: "POST",
-    headers: { "x-csrf": "1" }, // CONCEPT: csrf
-    retryOn401: false,
-  })
-    .then((tokens) => tokens.accessToken)
-    .catch(() => null) // no valid refresh cookie = logged out
-    .then((token) => {
-      setAccessToken(token);
-      refreshing = null;
-      return token;
+  if (!refreshInFlight) {
+    refreshInFlight = requestNewAccessToken().finally(() => {
+      refreshInFlight = null;
     });
-  return refreshing;
+  }
+  return refreshInFlight;
 }

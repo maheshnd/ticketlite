@@ -1,3 +1,5 @@
+# The Pulumi project for TicketLite's infrastructure (runtime: Node.js with pnpm).
+# Stacks live in Pulumi Cloud; `dev` is configured in Pulumi.dev.yaml.
 name: ticketlite-infra
 description: A minimal AWS TypeScript Pulumi program
 runtime:

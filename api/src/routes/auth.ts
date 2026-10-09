@@ -37,7 +37,8 @@ function requireCsrfHeader(request: FastifyRequest) {
   if (request.headers["x-csrf"] !== "1") throw forbidden("Missing the x-csrf header.");
 }
 
-export function authRoutes(app: App) {
+// The account lifecycle: sign up, confirm the email, forgot/reset password.
+function accountRoutes(app: App) {
   // 201: the account exists but is unconfirmed until the emailed code is entered.
   app.post("/auth/signup", { schema: { body: SignupInputSchema } }, async (request, reply) => {
     await auth.signUp(request.body.email, request.body.password);
@@ -49,6 +50,20 @@ export function authRoutes(app: App) {
     return reply.code(204).send();
   });
 
+  // 202 whether or not the email exists, so this can't be used to discover accounts.
+  app.post("/auth/forgot", { schema: { body: ForgotInputSchema } }, async (request, reply) => {
+    await auth.forgotPassword(request.body.email);
+    return reply.code(202).send();
+  });
+
+  app.post("/auth/reset", { schema: { body: ResetInputSchema } }, async (request, reply) => {
+    await auth.resetPassword(request.body.email, request.body.code, request.body.newPassword);
+    return reply.code(204).send();
+  });
+}
+
+// The session: login, refresh (on every page load) and logout.
+function sessionRoutes(app: App) {
   app.post(
     "/auth/login",
     { schema: { body: LoginInputSchema, response: { 200: TokenResponseSchema } } },
@@ -74,15 +89,9 @@ export function authRoutes(app: App) {
     reply.clearCookie(REFRESH_COOKIE, { path: refreshCookieOptions.path });
     return reply.code(204).send();
   });
+}
 
-  // 202 whether or not the email exists, so this can't be used to discover accounts.
-  app.post("/auth/forgot", { schema: { body: ForgotInputSchema } }, async (request, reply) => {
-    await auth.forgotPassword(request.body.email);
-    return reply.code(202).send();
-  });
-
-  app.post("/auth/reset", { schema: { body: ResetInputSchema } }, async (request, reply) => {
-    await auth.resetPassword(request.body.email, request.body.code, request.body.newPassword);
-    return reply.code(204).send();
-  });
+export function authRoutes(app: App) {
+  accountRoutes(app);
+  sessionRoutes(app);
 }

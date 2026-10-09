@@ -19,12 +19,12 @@ const db = createDb({
 
 // Step 1: apply pending migrations once per Lambda copy (build.mjs copies them to dist/migrations).
 // Drizzle records applied migrations in a table, so this is a no-op after the first run.
-let migrated: Promise<void> | undefined;
-const ensureMigrated = () =>
-  (migrated ??= migrate(db, { migrationsFolder: join(__dirname, "migrations") }).catch((error: unknown) => {
-    migrated = undefined; // try again on the next invocation
-    throw error;
-  }));
+let migrated = false;
+async function ensureMigrated() {
+  if (migrated) return;
+  await migrate(db, { migrationsFolder: join(__dirname, "migrations") }); // throws: tried again next time
+  migrated = true;
+}
 
 export const handler = async (event: DynamoDBStreamEvent): Promise<DynamoDBBatchResponse> => {
   await ensureMigrated(); // throws while the cluster is resuming: the whole batch is retried later

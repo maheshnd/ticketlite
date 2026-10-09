@@ -5,6 +5,7 @@ import cookie from "@fastify/cookie";
 import Fastify, { LogController } from "fastify";
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from "fastify-type-provider-zod";
 import { config } from "./config";
+import type { App } from "./types";
 import { genCorrelationId, registerCorrelationId } from "./plugins/correlation-id";
 import { registerErrorHandler } from "./plugins/error-handler";
 import { registerLocalCors } from "./plugins/cors";
@@ -23,9 +24,9 @@ import { searchRoutes } from "./routes/search";
 import { partnerRoutes } from "./routes/partner";
 import { adminReportRoutes } from "./routes/admin-reports";
 
-export async function buildApp() {
-  // Step 1: the Fastify instance. Logs are JSON lines (CloudWatch Logs Insights can query any field),
-  // and every line carries "correlationId" instead of Fastify's default "reqId".
+// Step 1: the Fastify instance. Logs are JSON lines (CloudWatch Logs Insights can query any field),
+// and every line carries "correlationId" instead of Fastify's default "reqId".
+function createFastify() {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -36,18 +37,15 @@ export async function buildApp() {
     logController: new LogController({ requestIdLogLabel: "correlationId" }),
   }).withTypeProvider<ZodTypeProvider>();
 
-  // Step 2: validate requests and serialize responses with Zod schemas.
+  // Validate requests and serialize responses with Zod schemas.
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  return app;
+}
 
-  // Step 3: cross-cutting plugins, registered before the routes so they apply to all of them.
-  registerCorrelationId(app);
-  registerErrorHandler(app);
-  await app.register(cookie); // parses the Cookie header into request.cookies; adds reply.setCookie
-  await registerLocalCors(app);
-  await registerSwagger(app);
-
-  // Step 4: every REST route lives under /api. CloudFront sends /api/* to API Gateway, everything else to S3.
+// Step 3: every REST route lives under /api (CloudFront sends /api/* to API Gateway, everything else to S3).
+// The partner API lives outside /api: partners call the REST API (API key + usage plan) directly.
+async function registerRoutes(app: App) {
   await app.register(
     async (api) => {
       healthRoutes(api);
@@ -65,9 +63,19 @@ export async function buildApp() {
     },
     { prefix: "/api" },
   );
-
-  // Step 5: the partner API lives outside /api: partners call the REST API (API key + usage plan) directly.
   await app.register(async (partner) => partnerRoutes(partner), { prefix: "/partner" });
+}
 
+export async function buildApp() {
+  const app = createFastify();
+
+  // Step 2: cross-cutting plugins, registered before the routes so they apply to all of them.
+  registerCorrelationId(app);
+  registerErrorHandler(app);
+  await app.register(cookie); // parses the Cookie header into request.cookies; adds reply.setCookie
+  await registerLocalCors(app);
+  await registerSwagger(app);
+
+  await registerRoutes(app);
   return app;
 }

@@ -3,6 +3,7 @@
 import { ResetInputSchema } from "@ticketlite/shared";
 import { useRouter } from "next/navigation";
 import { FormAlert } from "../../components/FormAlert";
+import { SubmitButton } from "../../components/SubmitButton";
 import { TextField } from "../../components/TextField";
 import { apiFetch } from "../../lib/api-client";
 import { useForm } from "./use-form";
@@ -43,13 +44,7 @@ export function ResetForm({ email }: { email: string }) {
         error={form.errors.newPassword}
         onChange={form.setValue("newPassword")}
       />
-      <button
-        type="submit"
-        disabled={form.submitting}
-        className="rounded bg-indigo-700 px-4 py-2 text-white disabled:opacity-60"
-      >
-        Reset password
-      </button>
+      <SubmitButton submitting={form.submitting}>Reset password</SubmitButton>
     </form>
   );
 }

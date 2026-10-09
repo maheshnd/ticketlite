@@ -3,6 +3,7 @@
 import { SignupInputSchema } from "@ticketlite/shared";
 import { useRouter } from "next/navigation";
 import { FormAlert } from "../../components/FormAlert";
+import { SubmitButton } from "../../components/SubmitButton";
 import { TextField } from "../../components/TextField";
 import { apiFetch } from "../../lib/api-client";
 import { useForm } from "./use-form";
@@ -35,13 +36,9 @@ export function SignupForm() {
         error={form.errors.password}
         onChange={form.setValue("password")}
       />
-      <button
-        type="submit"
-        disabled={form.submitting}
-        className="rounded bg-indigo-700 px-4 py-2 text-white disabled:opacity-60"
-      >
-        {form.submitting ? "Creating account…" : "Sign up"}
-      </button>
+      <SubmitButton submitting={form.submitting} busyLabel="Creating account…">
+        Sign up
+      </SubmitButton>
     </form>
   );
 }

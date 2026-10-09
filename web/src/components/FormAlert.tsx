@@ -1,5 +1,5 @@
 // A form-level message (e.g. "Wrong email or password"). role="alert" makes screen readers announce it
-// as soon as it appears, without the user having to find it.
+// as soon as it appears, without the user having to find it. CONCEPT: accessibility
 export function FormAlert({ message }: { message?: string | null }) {
   if (!message) return null;
   return (

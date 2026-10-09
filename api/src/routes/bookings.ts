@@ -21,7 +21,8 @@ const IdempotencyHeaders = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9-]{8,64}$/, "Send an Idempotency-Key header (e.g. a UUID)"),
 });
 
-export function bookingRoutes(app: App) {
+// POST /api/bookings
+function createBookingRoute(app: App) {
   app.post(
     "/bookings",
     {
@@ -51,7 +52,10 @@ export function bookingRoutes(app: App) {
       return reply.code(202).send(result.body);
     },
   );
+}
 
+// GET /api/bookings/:id and GET /api/bookings (only the caller's own bookings, never cached)
+function readBookingRoutes(app: App) {
   app.get(
     "/bookings/:id",
     {
@@ -75,4 +79,9 @@ export function bookingRoutes(app: App) {
       return listMyBookings(currentUser(request).userId, request.query.limit, request.query.cursor);
     },
   );
+}
+
+export function bookingRoutes(app: App) {
+  createBookingRoute(app);
+  readBookingRoutes(app);
 }

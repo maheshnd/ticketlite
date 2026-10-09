@@ -3,13 +3,17 @@
 //   - Scale to zero: minCapacity 0 pauses the cluster after 5 idle minutes (no compute bill; storage still billed).
 //   - Data API: SQL over HTTPS with IAM auth. Lambdas need no VPC, so no NAT gateway (~$32/month) either.
 import * as aws from "@pulumi/aws";
+import * as pulumi from "@pulumi/pulumi";
 import { flags, stage } from "./config";
 import { bookingsTable } from "./dynamodb";
+import { streamReadAccess, type PolicyStatement } from "./iam";
 import { createNodeFunction } from "./node-function";
 
-function createSql() {
-  // Step 1: the database still lives in a VPC: the account's default VPC is enough (no inbound rules,
-  // because nothing connects over TCP: the Data API runs inside AWS's own network).
+// Step 1: the database still lives in a VPC: the account's default VPC is enough (no inbound rules,
+// because nothing connects over TCP: the Data API runs inside AWS's own network).
+// The master password is created and stored by RDS in Secrets Manager (manageMasterUserPassword):
+// it never appears in code, config or Pulumi state.
+function createCluster() {
   const vpc = aws.ec2.getVpcOutput({ default: true });
   const subnets = aws.ec2.getSubnetsOutput({ filters: [{ name: "vpc-id", values: [vpc.id] }] });
   const subnetGroup = new aws.rds.SubnetGroup("sql-subnets", { subnetIds: subnets.ids });
@@ -18,8 +22,6 @@ function createSql() {
     description: "Aurora (Data API only, no inbound)",
   });
 
-  // Step 2: the cluster. The master password is created and stored by RDS in Secrets Manager
-  // (manageMasterUserPassword): it never appears in code, config or Pulumi state.
   const cluster = new aws.rds.Cluster("sql", {
     clusterIdentifier: `ticketlite-${stage}`,
     engine: "aurora-postgresql",
@@ -42,15 +44,11 @@ function createSql() {
     engine: "aurora-postgresql",
     engineVersion: cluster.engineVersion,
   });
+  return { clusterArn: cluster.arn, secretArn: cluster.masterUserSecrets.apply((s) => s[0]!.secretArn) };
+}
 
-  const secretArn = cluster.masterUserSecrets.apply((s) => s[0]!.secretArn);
-  const dataApi = (actions: string[]) => [
-    { Action: actions.map((a) => `rds-data:${a}`), Resource: [cluster.arn] },
-    { Action: ["secretsmanager:GetSecretValue"], Resource: [secretArn] },
-  ];
-  const env = { SQL_CLUSTER_ARN: cluster.arn, SQL_SECRET_ARN: secretArn, SQL_DATABASE: "ticketlite" };
-
-  // Step 3: the reporter, fed by the Bookings stream (same retry settings as the search indexer).
+// Step 2: the reporter, fed by the Bookings stream (same retry settings as the search indexer).
+function createReporter(env: Record<string, pulumi.Input<string>>, dataApiAccess: PolicyStatement[]) {
   const failures = new aws.sqs.Queue("sql-reporter-failures", {
     messageRetentionSeconds: 14 * 24 * 60 * 60,
     sqsManagedSseEnabled: true,
@@ -60,22 +58,8 @@ function createSql() {
     timeout: 30, // the first call after a pause waits for the cluster to resume
     environment: env,
     statements: [
-      ...dataApi([
-        "ExecuteStatement",
-        "BatchExecuteStatement",
-        "BeginTransaction",
-        "CommitTransaction",
-        "RollbackTransaction",
-      ]),
-      {
-        Action: [
-          "dynamodb:GetRecords",
-          "dynamodb:GetShardIterator",
-          "dynamodb:DescribeStream",
-          "dynamodb:ListStreams",
-        ],
-        Resource: [bookingsTable.streamArn],
-      },
+      ...dataApiAccess,
+      streamReadAccess(bookingsTable.streamArn),
       { Action: ["sqs:SendMessage"], Resource: [failures.arn] },
     ],
   });
@@ -90,8 +74,28 @@ function createSql() {
     functionResponseTypes: ["ReportBatchItemFailures"],
     destinationConfig: { onFailure: { destinationArn: failures.arn } },
   });
+}
 
-  // The api only reads (reports): ExecuteStatement is enough.
+function createSql() {
+  const { clusterArn, secretArn } = createCluster();
+  // Data API permissions: the listed rds-data actions on this cluster + reading its managed secret.
+  const dataApi = (actions: string[]): PolicyStatement[] => [
+    { Action: actions.map((a) => `rds-data:${a}`), Resource: [clusterArn] },
+    { Action: ["secretsmanager:GetSecretValue"], Resource: [secretArn] },
+  ];
+  const env = { SQL_CLUSTER_ARN: clusterArn, SQL_SECRET_ARN: secretArn, SQL_DATABASE: "ticketlite" };
+
+  // The reporter writes (upserts in transactions); the api only reads reports: ExecuteStatement is enough.
+  createReporter(
+    env,
+    dataApi([
+      "ExecuteStatement",
+      "BatchExecuteStatement",
+      "BeginTransaction",
+      "CommitTransaction",
+      "RollbackTransaction",
+    ]),
+  );
   return { env, apiStatements: dataApi(["ExecuteStatement"]) };
 }
 

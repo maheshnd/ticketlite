@@ -1,5 +1,5 @@
 // OpenAPI docs generated from the routes' Zod schemas, served at /api/docs.
-// Only outside production: public API docs make it easier for attackers to map the API.
+// Only outside production: public API docs make it easier for attackers to map the API. CONCEPT: openapi
 import { join } from "node:path";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";

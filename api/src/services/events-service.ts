@@ -1,5 +1,5 @@
 // Business logic for reading events. Routes call this; this calls the repository.
-// No HTTP and no AWS SDK here, which keeps it easy to read and to test.
+// No HTTP and no AWS SDK here, which keeps it easy to read and to test. CONCEPT: cache-aside
 import type { Event, EventPage, ListEventsQuery } from "@ticketlite/shared";
 import { notFound } from "../errors";
 import { getEventById, listEventsByCity, listEventsByStatus } from "../repositories/events-repository";

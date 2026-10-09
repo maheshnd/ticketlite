@@ -1,5 +1,6 @@
 "use client";
 // One event in the list. Hovering or focusing the link prefetches the detail page's data.
+// CONCEPT: prefetching
 import type { Event } from "@ticketlite/shared";
 import Link from "next/link";
 import { formatDate, formatPrice } from "../../lib/format";

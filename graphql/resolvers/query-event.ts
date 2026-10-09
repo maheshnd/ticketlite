@@ -1,4 +1,5 @@
 // Query.event(id): GetItem straight from DynamoDB. Drafts are invisible here, like in the REST API.
+// CONCEPT: appsync-resolvers
 import { type Context, util } from "@aws-appsync/utils";
 
 export function request(ctx: Context<{ id: string }>) {

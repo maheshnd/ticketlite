@@ -5,31 +5,40 @@ import { join } from "node:path";
 
 const SKIP = new Set(["node_modules", "dist", "out", ".next", ".git", "coverage", "bin", "notes"]);
 const EXTENSIONS = /\.(ts|tsx|js|mjs|graphql|json|yml|yaml)$/;
+const TAG_LINE = /CONCEPT: ([a-z0-9-]+(?:, [a-z0-9-]+)*)/g;
 
-// Step 1: walk the repo and collect every tag, e.g. "// CONCEPT: cold-start, connection-reuse".
-function collect(dir: string, tags: Map<string, string>) {
-  for (const name of readdirSync(dir)) {
-    if (SKIP.has(name)) continue;
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) collect(path, tags);
-    else if (EXTENSIONS.test(name)) {
-      for (const match of readFileSync(path, "utf8").matchAll(/CONCEPT: ([a-z0-9-]+(?:, [a-z0-9-]+)*)/g)) {
-        for (const tag of match[1]!.split(", ")) if (!tags.has(tag)) tags.set(tag, path);
-      }
-    }
+// Step 1: every source file under `dir`, skipping build output and dependencies.
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir)
+    .filter((name) => !SKIP.has(name))
+    .flatMap((name) => {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) return sourceFiles(path);
+      return EXTENSIONS.test(name) ? [path] : [];
+    });
+}
+
+// Step 2: the tags in one file, e.g. "// CONCEPT: cold-start, connection-reuse" -> ["cold-start", "connection-reuse"].
+function tagsIn(file: string): string[] {
+  const text = readFileSync(file, "utf8");
+  return [...text.matchAll(TAG_LINE)].flatMap((match) => match[1]!.split(", "));
+}
+
+// Step 3: remember where each tag was first seen (for a helpful error message).
+const firstSeen = new Map<string, string>();
+for (const file of sourceFiles(".")) {
+  for (const tag of tagsIn(file)) {
+    if (!firstSeen.has(tag)) firstSeen.set(tag, file);
   }
 }
 
-const tags = new Map<string, string>();
-collect(".", tags);
-
-// Step 2: every tag must appear in the map as `tag` (in backticks).
+// Step 4: every tag must appear in the map as `tag` (in backticks).
 const map = readFileSync("docs/CONCEPT-MAP.md", "utf8");
-const missing = [...tags].filter(([tag]) => !map.includes("`" + tag + "`"));
+const missing = [...firstSeen].filter(([tag]) => !map.includes("`" + tag + "`"));
 
 if (missing.length > 0) {
   console.error("These CONCEPT tags are missing from docs/CONCEPT-MAP.md:");
   for (const [tag, file] of missing) console.error(`  ${tag}  (first seen in ${file})`);
   process.exit(1);
 }
-console.log(`All ${tags.size} CONCEPT tags are in docs/CONCEPT-MAP.md`);
+console.log(`All ${firstSeen.size} CONCEPT tags are in docs/CONCEPT-MAP.md`);

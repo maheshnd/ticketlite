@@ -1,66 +1,40 @@
 "use client";
-// Search: a debounced search box, results, and the city aggregation as filter buttons.
-// keepPreviousData-style placeholder keeps the old results on screen while the next ones load (no flicker).
-import type { SearchResponse } from "@ticketlite/shared";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+// Search: a debounced search box (one request after typing stops), results, and the city aggregation as
+// filter buttons. CONCEPT: debouncing, full-text-search
 import { useState } from "react";
-import { apiFetch } from "../../lib/api-client";
-import { searchKeys } from "../../lib/query-keys";
 import { useDebouncedValue } from "../../lib/use-debounced-value";
 import { EventCard } from "../events/EventCard";
+import { CityFilters } from "./CityFilters";
+import { useSearch } from "./search-queries";
+
+// The search box. role="search" makes it a landmark screen readers can jump to.
+function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div role="search" className="flex flex-col gap-1">
+      <label htmlFor="q">Search events</label>
+      <input
+        id="q"
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. jazz"
+        className="rounded border border-slate-400 p-2"
+      />
+    </div>
+  );
+}
 
 export function SearchPage() {
   const [input, setInput] = useState("");
   const [city, setCity] = useState<string | undefined>(undefined);
-  const q = useDebouncedValue(input.trim());
-
-  const { data, error, isFetching } = useQuery({
-    queryKey: searchKeys.query(q, city),
-    queryFn: () => {
-      const params = new URLSearchParams({ q });
-      if (city) params.set("city", city);
-      return apiFetch<SearchResponse>(`/api/search?${params}`);
-    },
-    enabled: q.length > 0,
-    placeholderData: keepPreviousData,
-  });
+  const { data, error, isFetching } = useSearch(useDebouncedValue(input.trim()), city);
 
   return (
     <div className="mt-4 flex flex-col gap-4">
-      <div role="search" className="flex flex-col gap-1">
-        <label htmlFor="q">Search events</label>
-        <input
-          id="q"
-          type="search"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="e.g. jazz"
-          className="rounded border border-slate-400 p-2"
-        />
-      </div>
+      <SearchBox value={input} onChange={setInput} />
 
       {data && data.cities.length > 0 && (
-        <div role="group" aria-label="Filter by city" className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            aria-pressed={!city}
-            onClick={() => setCity(undefined)}
-            className="rounded border px-3 py-1 aria-pressed:bg-indigo-700 aria-pressed:text-white"
-          >
-            All
-          </button>
-          {data.cities.map((c) => (
-            <button
-              key={c.city}
-              type="button"
-              aria-pressed={city === c.city}
-              onClick={() => setCity(c.city)}
-              className="rounded border px-3 py-1 aria-pressed:bg-indigo-700 aria-pressed:text-white"
-            >
-              {c.city} ({c.count})
-            </button>
-          ))}
-        </div>
+        <CityFilters cities={data.cities} selected={city} onSelect={setCity} />
       )}
 
       {/* One live region for the result count, so screen readers hear how many matches there are. */}

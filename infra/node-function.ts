@@ -16,21 +16,28 @@ export type NodeFunctionArgs = {
   reservedConcurrency?: number;
 };
 
+// We create the log group ourselves with 7-day retention. If Lambda created it, logs would be kept forever
+// and slowly add to the bill. CONCEPT: cost-safety
+const createLogGroup = (name: string, functionName: string) =>
+  new aws.cloudwatch.LogGroup(`${name}-logs`, { name: `/aws/lambda/${functionName}`, retentionInDays: 7 });
+
+// Environment variables every function gets, before its own ones.
+const baseEnvironment = (name: string) => ({
+  STAGE: stage,
+  POWERTOOLS_SERVICE_NAME: name, // Powertools adds it to every log line and trace
+  POWERTOOLS_METRICS_NAMESPACE: "TicketLite", // custom metrics (BookingsConfirmed, ...) live here
+  NODE_OPTIONS: "--enable-source-maps", // readable stack traces from the minified bundle
+});
+
 export function createNodeFunction(name: string, args: NodeFunctionArgs) {
   // A fixed name (e.g. "ticketlite-api-dev") so we know the log group name before the function exists.
   const functionName = `ticketlite-${name}-${stage}`;
 
-  // Step 1: create the log group ourselves with 7-day retention.
-  // If Lambda created it, logs would be kept forever and slowly add to the bill. CONCEPT: cost-safety
-  const logGroup = new aws.cloudwatch.LogGroup(`${name}-logs`, {
-    name: `/aws/lambda/${functionName}`,
-    retentionInDays: 7,
-  });
-
-  // Step 2: its own role. CONCEPT: least-privilege
+  // Step 1: its log group and its own role. CONCEPT: least-privilege
+  const logGroup = createLogGroup(name, functionName);
   const { role, attachments } = createLambdaRole(name, args.statements);
 
-  // Step 3: the function.
+  // Step 2: the function.
   const fn = new aws.lambda.Function(
     name,
     {
@@ -45,15 +52,7 @@ export function createNodeFunction(name: string, args: NodeFunctionArgs) {
       publish: args.publish ?? false,
       reservedConcurrentExecutions: args.reservedConcurrency ?? -1, // -1 = no reservation
       tracingConfig: { mode: "Active" }, // X-Ray traces for every invocation. CONCEPT: distributed-tracing
-      environment: {
-        variables: {
-          STAGE: stage,
-          POWERTOOLS_SERVICE_NAME: name, // Powertools adds it to every log line and trace
-          POWERTOOLS_METRICS_NAMESPACE: "TicketLite", // custom metrics (BookingsConfirmed, ...) live here
-          NODE_OPTIONS: "--enable-source-maps", // readable stack traces from the minified bundle
-          ...args.environment,
-        },
-      },
+      environment: { variables: { ...baseEnvironment(name), ...args.environment } },
       loggingConfig: {
         logFormat: "JSON", // Lambda's own lines (START/END/REPORT) as JSON too, so Logs Insights can query them
         logGroup: logGroup.name, // send logs to the group above, not an auto-created one

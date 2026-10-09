@@ -1,5 +1,6 @@
 "use client";
 // Client-side providers for the whole app: React Query (server state) and auth (who is logged in).
+// CONCEPT: react-query
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { MockGate } from "../components/MockGate";

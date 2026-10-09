@@ -21,7 +21,8 @@ export async function withIdempotency<T>(
   const requestHash = createHash("sha256").update(JSON.stringify(request)).digest("hex");
 
   // Step 2: try to claim the key. Only one concurrent request can win this conditional write.
-  if (!(await claimKey(key, requestHash))) {
+  const claimed = await claimKey(key, requestHash);
+  if (!claimed) {
     const existing = await getKey(key);
     if (existing && existing.requestHash !== requestHash) {
       throw unprocessable("This Idempotency-Key was already used for a different request.");
@@ -39,7 +40,7 @@ export async function withIdempotency<T>(
   // Step 3: we own the key: do the work, then store the response for future retries.
   try {
     const response = await work();
-    await completeKey(key, response.status, response.body);
+    await completeKey(claimed, response.status, response.body);
     return { ...response, replayed: false };
   } catch (error) {
     // The work failed: free the key so the client can retry the SAME key and succeed later.

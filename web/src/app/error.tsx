@@ -1,6 +1,7 @@
 "use client";
 // The app-wide error boundary: a rendering error anywhere below the root layout lands here instead of a
 // blank page. Next.js wraps each route segment in its own boundary when a folder has an error.tsx.
+// CONCEPT: error-boundaries
 export default function AppError({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <section role="alert" className="flex flex-col gap-3">

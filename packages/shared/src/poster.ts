@@ -1,5 +1,6 @@
 // Poster upload: the browser asks the API for a presigned POST, then uploads straight to S3.
 // The limits here are ALSO written into the presigned POST's conditions, so S3 itself enforces them.
+// CONCEPT: presigned-urls
 import { z } from "zod";
 
 export const POSTER_MAX_BYTES = 2 * 1024 * 1024; // 2 MB

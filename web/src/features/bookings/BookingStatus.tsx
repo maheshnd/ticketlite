@@ -1,6 +1,6 @@
 "use client";
 // Shows a booking while the saga runs. The status line is an aria-live region, so screen readers announce
-// "Confirmed" (or the failure) the moment polling picks it up.
+// "Confirmed" (or the failure) the moment polling picks it up. CONCEPT: polling, accessibility
 import Link from "next/link";
 import { PageHeading } from "../../components/PageHeading";
 import { ApiError } from "../../lib/api-client";

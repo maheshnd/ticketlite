@@ -1,4 +1,5 @@
 // POST /api/admin/uploads/poster: returns a presigned POST. The browser then uploads the file straight to S3.
+// CONCEPT: presigned-urls
 import { PosterUploadInputSchema, PosterUploadResponseSchema } from "@ticketlite/shared";
 import { requireAdmin } from "../plugins/auth-context";
 import { createPosterUpload } from "../services/posters-service";

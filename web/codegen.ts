@@ -1,6 +1,7 @@
 // GraphQL Code Generator: reads the AppSync schema + every graphql(`...`) operation in web/src and writes
 // typed documents to src/gql. A typo in a field name becomes a TYPE error, not a runtime surprise.
 // Run: pnpm --filter @ticketlite/web codegen (also runs before typecheck, test and build).
+// CONCEPT: graphql-client
 import type { CodegenConfig } from "@graphql-codegen/cli";
 
 const config: CodegenConfig = {

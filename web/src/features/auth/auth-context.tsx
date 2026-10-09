@@ -1,6 +1,7 @@
 "use client";
 // Auth state for the whole app: "loading" until the first refresh answers, then "authenticated" or "anonymous".
 // The token itself lives in lib/token-store.ts (memory only); this context mirrors it into React.
+// CONCEPT: token-storage
 import type { LoginInput, TokenResponse } from "@ticketlite/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";

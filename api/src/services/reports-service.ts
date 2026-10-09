@@ -1,4 +1,5 @@
 // SQL reports for admins (flag enableSql). Drizzle over the RDS Data API, see packages/sql.
+// CONCEPT: graceful-degradation, sql-vs-nosql
 import { bookingsPerDay, createDb, isDatabaseResuming, revenuePerEvent, type Db } from "@ticketlite/sql";
 import type { ReportsResponse } from "@ticketlite/shared";
 import { HttpError, notFound } from "../errors";

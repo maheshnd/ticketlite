@@ -1,9 +1,26 @@
 "use client";
-// "My bookings": newest first, paged with a "Load more" button.
+// "My bookings": newest first, paged with a "Load more" button. CONCEPT: pagination
+import type { Booking } from "@ticketlite/shared";
 import Link from "next/link";
 import { formatPrice } from "../../lib/format";
 import { useAuth } from "../auth/auth-context";
 import { useMyBookings } from "./bookings-queries";
+
+// One booking in the list: event name (links to its status page), seats, amount, status.
+function BookingItem({ booking }: { booking: Booking }) {
+  return (
+    <li className="rounded border border-slate-200 bg-white p-3">
+      <Link
+        href={`/booking?id=${encodeURIComponent(booking.bookingId)}`}
+        className="font-semibold text-indigo-700 underline"
+      >
+        {booking.eventName}
+      </Link>{" "}
+      · {booking.seats} seat{booking.seats > 1 ? "s" : ""} · {formatPrice(booking.amount)} ·{" "}
+      <strong>{booking.status}</strong>
+    </li>
+  );
+}
 
 export function MyBookings() {
   const { status } = useAuth();
@@ -28,16 +45,8 @@ export function MyBookings() {
   return (
     <div className="flex flex-col gap-4">
       <ul className="flex flex-col gap-2" aria-label="My bookings">
-        {bookings.map((b) => (
-          <li key={b.bookingId} className="rounded border border-slate-200 bg-white p-3">
-            <Link
-              href={`/booking?id=${encodeURIComponent(b.bookingId)}`}
-              className="font-semibold text-indigo-700 underline"
-            >
-              {b.eventName}
-            </Link>{" "}
-            · {b.seats} seat{b.seats > 1 ? "s" : ""} · {formatPrice(b.amount)} · <strong>{b.status}</strong>
-          </li>
+        {bookings.map((booking) => (
+          <BookingItem key={booking.bookingId} booking={booking} />
         ))}
       </ul>
       {hasNextPage && (

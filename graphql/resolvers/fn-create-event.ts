@@ -1,4 +1,5 @@
 // Pipeline function 2 for createEvent: PutItem with a generated id, version 1, all seats available.
+// CONCEPT: appsync-resolvers
 import { type Context, util } from "@aws-appsync/utils";
 
 type Input = { totalSeats: number } & Record<string, unknown>;

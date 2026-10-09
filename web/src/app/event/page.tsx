@@ -1,6 +1,6 @@
 "use client";
 // /event?id=evt-001. With a static export there is no server to render /event/evt-001 on demand,
-// so the id travels in the query string and the page reads it in the browser.
+// so the id travels in the query string and the page reads it in the browser. CONCEPT: static-export
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { EventDetail } from "../../features/events/EventDetail";

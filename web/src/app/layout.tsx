@@ -1,5 +1,6 @@
 // Root layout: the HTML shell shared by every page (language, skip link, header, main landmark).
 // Accessibility starts here: <html lang>, a "skip to content" link and one <main> per page.
+// CONCEPT: accessibility
 import type { Metadata } from "next";
 import { NavBar } from "../components/NavBar";
 import { Providers } from "./providers";

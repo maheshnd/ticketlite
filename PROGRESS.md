@@ -14,6 +14,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | ✅ done — `pulumi preview`: 147 to create (157 with search + cache on); search, analyzer and cache checked against local OpenSearch 3.7 + Redis; 109 tests |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | ✅ done — `pulumi preview`: 167 to create (192 with every flag on); 116 tests |
 | M7 | Playwright + axe, all docs, final pass | ✅ done — `pulumi preview`: 167 to create (172 with a custom domain); 116 unit/component tests + 8 E2E journeys with axe (0 violations) |
+| — | Readability pass (BUILD-SPEC §0) | ✅ done — no file over 150 lines, no function over ~40, nesting ≤ 3, every file has a header, 4 new CONCEPT tags (110 total); tests unchanged (116 + 8 E2E). **`pulumi preview` not run**: the `ticketlite` SSO session had expired; Pulumi resource names were not changed, so it should still show 167 |
 
 ## Decisions and deviations from the spec
 
@@ -74,9 +75,11 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 53. **`enableCustomDomain` implemented** (`infra/domain.ts`): DNS-validated ACM certificate + CloudFront alias + Route 53 A/AAAA records; needs `customDomain` and `hostedZoneId` config.
 54. **`web` declares `vitest` itself**: pnpm "peer variants" otherwise attach jest-dom's matcher types to a different vitest copy.
 55. **ADRs 0001, 0003, 0009, 0010 added**; ADR index in `docs/adr/README.md`. Deep-dive docs: EVENT-DRIVEN, SEARCH, CACHING.
+56. **Readability pass**: `cdn.ts` → `cdn.ts` + `cdn-policies.ts`; `appsync.ts` → `appsync.ts` + `appsync-resolvers.ts`; MSW handlers split per API area; long functions split into named steps (saga handlers, email worker, infra `create*` functions, route registrations, React components); `announceOutcome()` shared by Confirm/ReleaseSeat; `useBookEvent` holds the Idempotency-Key logic. Clever code replaced with plain code: the token-refresh promise chain, the AppSync pipeline tuple loop, the sql-reporter `??=` migration promise, and the test fake's UpdateExpression parser (the idempotency repository now finishes a key with a plain `Put` of the whole record; the stored item is identical).
 
 ## Open questions
 
+- Run `AWS_PROFILE=ticketlite pulumi preview` once the SSO session is renewed (`aws sso login --profile ticketlite` or `aws login --profile ticketlite`) to confirm the readability pass still previews 167 resources.
 - None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins).
 
 ## Next steps

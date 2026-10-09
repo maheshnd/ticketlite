@@ -1,4 +1,5 @@
 // GET /api/me: who am I? Protected twice: API Gateway's JWT authorizer, then requireUser here.
+// CONCEPT: defense-in-depth
 import { MeSchema } from "@ticketlite/shared";
 import { currentUser, requireUser } from "../plugins/auth-context";
 import { getEmail } from "../services/auth-service";

@@ -1,3 +1,4 @@
+# Config for the `dev` stack: region, default tags, cost-safety flags and emails. Read by infra/config.ts.
 config:
   # No aws:profile here: CI has no local profile. Credentials come from the environment
   # (OIDC role in GitHub Actions, or AWS_PROFILE=ticketlite for a local preview).

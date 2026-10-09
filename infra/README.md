@@ -23,7 +23,8 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `http-api.ts` | HTTP API (local-only CORS) |
 | `http-routes.ts` | Lambda integration, public routes, JWT authorizer + protected routes, stage (throttling, access logs) |
 | `stepfunctions.ts` | Booking saga: 4 Lambdas + Standard state machine (`booking-state-machine.asl.json`, explained in `.md`) |
-| `appsync.ts` | GraphQL API (3 auth modes), API key, data sources, JS + pipeline resolvers, organizer batch Lambda |
+| `appsync.ts` | GraphQL API (3 auth modes), logging, public API key |
+| `appsync-resolvers.ts` | Data sources, JS + pipeline resolvers, organizer batch Lambda (BatchInvoke) |
 | `events.ts` | EventBridge bus + rules, SQS email queue + DLQ, email-worker, SES identity, SNS admin topic |
 | `search.ts` | (flag `enableSearch`) OpenSearch domain, search-indexer + stream mapping + failure queue |
 | `secrets.ts` | Secrets Manager containers (payment key; Upstash URL with `enableCache`) |
@@ -34,7 +35,8 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `sql.ts` | (flag `enableSql`) Aurora Serverless v2 PostgreSQL (scale to zero, Data API), sql-reporter |
 | `uploads.ts` | Posters bucket CORS, poster-processor (async S3 trigger), `poster-failures` queue |
 | `storage.ts` | `web` and `posters` S3 buckets (private) |
-| `cdn.ts` | CloudFront: OAC, S3 + API origins, security headers, bucket policies |
+| `cdn.ts` | CloudFront distribution: S3 + API origins, behaviors, bucket policies, custom-domain DNS |
+| `cdn-policies.ts` | OAC, the rewrite function, security headers policy, 30 s cache policy for `/api/events` |
 | `cdn-rewrite.js` | CloudFront Function: `/event` → `/event.html` |
 
 ## Outputs
