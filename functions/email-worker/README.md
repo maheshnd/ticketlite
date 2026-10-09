@@ -11,5 +11,6 @@ Sends the booking confirmation email.
   never lets a second copy pick up the same message). After 3 receives it moves to `email-dlq`.
   Redrive: docs/RUNBOOK.md.
 - **SES sandbox:** emails go to the verified address in `sesEmail` (Pulumi config) only.
-- **IAM:** `sqs:ReceiveMessage/DeleteMessage/GetQueueAttributes` on the queue, `ses:SendEmail` on the identity,
-  `dynamodb:GetItem/UpdateItem` on Bookings.
+- **IAM** (`infra/events.ts`): `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` on `email-queue` (the
+  event source mapping polls as this role); `ses:SendEmail` on the verified identity; `dynamodb:GetItem` +
+  `UpdateItem` on Bookings (the `emailSentAt` marker). Plus logs + X-Ray.

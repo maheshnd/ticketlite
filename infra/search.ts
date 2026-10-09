@@ -23,7 +23,8 @@ function createDomain() {
     nodeToNodeEncryption: { enabled: true },
     domainEndpointOptions: { enforceHttps: true, tlsSecurityPolicy: "Policy-Min-TLS-1-2-2019-07" },
     // The resource policy delegates to IAM: any principal of THIS account that has an IAM policy allowing
-    // es:ESHttp* may call it (requests must be SigV4-signed). Our Lambda roles get exactly that.
+    // es:ESHttp* may call it (requests must be SigV4-signed). Each Lambda role gets only the methods and
+    // paths it uses (searchAccess below).
     accessPolicies: pulumi.jsonStringify({
       Version: "2012-10-17",
       Statement: [
@@ -36,15 +37,30 @@ function createDomain() {
       ],
     }),
   });
-  const httpAccess: PolicyStatement = {
-    Action: ["es:ESHttpGet", "es:ESHttpHead", "es:ESHttpPut", "es:ESHttpPost", "es:ESHttpDelete"],
-    Resource: [pulumi.interpolate`${domain.arn}/*`],
+  return { domainArn: domain.arn, endpoint: pulumi.interpolate`https://${domain.endpoint}` };
+}
+
+// Exact OpenSearch HTTP permissions, per caller. IAM matches the request PATH under the domain ARN.
+// "events" is EVENTS_INDEX in packages/shared/src/search.ts.
+function searchAccess(domainArn: pulumi.Output<string>) {
+  const index = pulumi.interpolate`${domainArn}/events`;
+  // search-indexer (functions/search-indexer/handler.ts): indices.exists = HEAD /events, indices.create =
+  // PUT /events, index with an id = PUT /events/_doc/<id>, delete = DELETE /events/_doc/<id>.
+  const indexer: PolicyStatement = {
+    Action: ["es:ESHttpHead", "es:ESHttpPut", "es:ESHttpDelete"],
+    Resource: [index, pulumi.interpolate`${index}/*`],
   };
-  return { endpoint: pulumi.interpolate`https://${domain.endpoint}`, httpAccess };
+  // api (api/src/services/search-service.ts): client.search with a body = POST /events/_search
+  // (the client switches to GET when there is no body, so GET is allowed too). Read-only.
+  const api: PolicyStatement = {
+    Action: ["es:ESHttpPost", "es:ESHttpGet"],
+    Resource: [pulumi.interpolate`${index}/_search`],
+  };
+  return { indexer, api };
 }
 
 // Step 2: the indexer, fed by the Events table's stream. Returns its failure queue (alarmed in observability.ts).
-function createIndexer(endpoint: pulumi.Output<string>, httpAccess: PolicyStatement) {
+function createIndexer(endpoint: pulumi.Output<string>, indexAccess: PolicyStatement) {
   const failures = new aws.sqs.Queue("search-indexer-failures", {
     messageRetentionSeconds: 14 * 24 * 60 * 60,
     sqsManagedSseEnabled: true,
@@ -53,9 +69,9 @@ function createIndexer(endpoint: pulumi.Output<string>, httpAccess: PolicyStatem
     codeDir: "../functions/search-indexer/dist",
     environment: { OPENSEARCH_ENDPOINT: endpoint },
     statements: [
-      httpAccess,
-      streamReadAccess(eventsTable.streamArn),
-      { Action: ["sqs:SendMessage"], Resource: [failures.arn] },
+      indexAccess, // write the "events" index (see searchAccess)
+      ...streamReadAccess(eventsTable.streamArn), // the event source mapping reads the Events stream
+      { Action: ["sqs:SendMessage"], Resource: [failures.arn] }, // on-failure destination uses this role
     ],
   });
 
@@ -76,9 +92,10 @@ function createIndexer(endpoint: pulumi.Output<string>, httpAccess: PolicyStatem
 }
 
 function createSearch() {
-  const { endpoint, httpAccess } = createDomain();
-  const failures = createIndexer(endpoint, httpAccess);
-  return { endpoint, httpAccess, failures };
+  const { domainArn, endpoint } = createDomain();
+  const access = searchAccess(domainArn);
+  const failures = createIndexer(endpoint, access.indexer);
+  return { endpoint, apiAccess: access.api, failures };
 }
 
 // Undefined when the flag is off: the API then uses its DynamoDB fallback.

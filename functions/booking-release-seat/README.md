@@ -8,4 +8,6 @@ Saga compensation (`ReleaseSeat`): undoes `ReserveSeat` after a payment failure.
 - **Errors:** retried by the state machine (3 attempts). If it still fails the execution FAILS, which raises an
   alarm (`booking-saga-failed`): seats stuck in a failed booking need a human.
 - **Idempotent:** a retry finds the booking FAILED, the transaction is cancelled, seats are not given back twice.
-- **IAM:** `dynamodb:UpdateItem` on the Events and Bookings tables.
+- **IAM** (`infra/stepfunctions.ts`): `dynamodb:UpdateItem` on Events and Bookings (the two `Update`s of the
+  transaction); for the announcement: `dynamodb:GetItem` on Events, `appsync:GraphQL` on `Mutation.publishSeatUpdate`
+  only, `events:PutEvents` on the ticketlite bus. Plus logs + X-Ray.

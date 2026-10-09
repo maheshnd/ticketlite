@@ -58,9 +58,9 @@ function createReporter(env: Record<string, pulumi.Input<string>>, dataApiAccess
     timeout: 30, // the first call after a pause waits for the cluster to resume
     environment: env,
     statements: [
-      ...dataApiAccess,
-      streamReadAccess(bookingsTable.streamArn),
-      { Action: ["sqs:SendMessage"], Resource: [failures.arn] },
+      ...dataApiAccess, // Drizzle over the Data API (see createSql)
+      ...streamReadAccess(bookingsTable.streamArn), // the event source mapping reads the Bookings stream
+      { Action: ["sqs:SendMessage"], Resource: [failures.arn] }, // on-failure destination uses this role
     ],
   });
   new aws.lambda.EventSourceMapping("bookings-stream-to-sql", {
@@ -85,17 +85,14 @@ function createSql() {
   ];
   const env = { SQL_CLUSTER_ARN: clusterArn, SQL_SECRET_ARN: secretArn, SQL_DATABASE: "ticketlite" };
 
-  // The reporter writes (upserts in transactions); the api only reads reports: ExecuteStatement is enough.
+  // functions/sql-reporter: Drizzle's migrator runs the migrations in a transaction (Begin/Commit/Rollback)
+  // and every statement, including the upserts, is one ExecuteStatement. Drizzle never batches.
   createReporter(
     env,
-    dataApi([
-      "ExecuteStatement",
-      "BatchExecuteStatement",
-      "BeginTransaction",
-      "CommitTransaction",
-      "RollbackTransaction",
-    ]),
+    dataApi(["ExecuteStatement", "BeginTransaction", "CommitTransaction", "RollbackTransaction"]),
   );
+  // api/src/services/reports-service.ts only runs two SELECTs: ExecuteStatement is enough.
+  // lambdas.ts adds these to the api role.
   return { env, apiStatements: dataApi(["ExecuteStatement"]) };
 }
 

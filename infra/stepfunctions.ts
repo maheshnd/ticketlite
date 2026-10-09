@@ -12,8 +12,10 @@ import { eventBus } from "./events";
 import { createNodeFunction } from "./node-function";
 import { paymentSecret } from "./secrets";
 
-// Step 1: the saga Lambdas. Each gets only the table actions it uses (TransactWriteItems needs UpdateItem).
+// Step 1: the saga Lambdas. Each gets only the table actions it uses. CONCEPT: least-privilege
+// A TransactWriteItems is authorized per item: each "Update" in it needs dynamodb:UpdateItem on that table.
 const tables = { EVENTS_TABLE: eventsTable.name, BOOKINGS_TABLE: bookingsTable.name };
+// reserve-seat / release-seat handler.ts: one transaction updating the event (seats) AND the booking.
 const updateBoth = [{ Action: ["dynamodb:UpdateItem"], Resource: [eventsTable.arn, bookingsTable.arn] }];
 
 const reserveSeat = createNodeFunction("booking-reserve-seat", {
@@ -24,18 +26,22 @@ const reserveSeat = createNodeFunction("booking-reserve-seat", {
 const processPayment = createNodeFunction("booking-process-payment", {
   codeDir: "../functions/booking-process-payment/dist",
   environment: { PAYMENT_FAILURE_RATE: String(paymentFailureRate), PAYMENT_SECRET_ARN: paymentSecret.arn },
+  // handler.ts: Powertools getSecret = GetSecretValue on the payment signing secret only.
   statements: [{ Action: ["secretsmanager:GetSecretValue"], Resource: [paymentSecret.arn] }],
 });
-// Confirm and ReleaseSeat also read the new seat count and publish it to AppSync (IAM: only that mutation).
-// Both also publish a domain event (BookingConfirmed / BookingFailed) to the EventBridge bus.
+// Confirm and ReleaseSeat both announce the outcome (functions/shared/announce.ts):
 const liveUpdate = [
+  // shared/events-table.ts: read the new seat count.
   { Action: ["dynamodb:GetItem"], Resource: [eventsTable.arn] },
+  // shared/appsync.ts: the SigV4-signed publishSeatUpdate mutation, and no other field.
   { Action: ["appsync:GraphQL"], Resource: [publishSeatUpdateArn] },
+  // shared/eventbridge.ts: BookingConfirmed / BookingFailed, on the ticketlite bus only.
   { Action: ["events:PutEvents"], Resource: [eventBus.arn] },
 ];
 const confirm = createNodeFunction("booking-confirm", {
   codeDir: "../functions/booking-confirm/dist",
   environment: { ...tables, APPSYNC_URL: graphqlUrl, EVENT_BUS_NAME: eventBus.name },
+  // handler.ts: booking PENDING -> CONFIRMED (a conditional UpdateItem).
   statements: [{ Action: ["dynamodb:UpdateItem"], Resource: [bookingsTable.arn] }, ...liveUpdate],
 });
 const releaseSeat = createNodeFunction("booking-release-seat", {

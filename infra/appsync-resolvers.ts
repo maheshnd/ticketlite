@@ -14,6 +14,7 @@ const dsRole = new aws.iam.Role("appsync-ds-role", {
 const organizerBatch = createNodeFunction("appsync-organizer-batch", {
   codeDir: "../functions/appsync-organizer-batch/dist",
   environment: { ORGANIZERS_TABLE: organizersTable.name },
+  // handler.ts: ONE BatchGetItem for all the organizer ids of a batch.
   statements: [{ Action: ["dynamodb:BatchGetItem"], Resource: [organizersTable.arn] }],
 });
 new aws.iam.RolePolicy("appsync-ds-policy", {

@@ -9,4 +9,5 @@ Resolves `Event.organizer` for AppSync, many events at once (the N+1 fix).
 - **See the N+1 problem:** query `events { items { name organizer { name } } }`. With BatchInvoke the logs show one
   invocation with `batchSize: N`. Set `maxBatchSize: 0` in `infra/appsync.ts` and AppSync invokes it N times.
 - **Retries:** none (AppSync returns the error for that field; the rest of the query still succeeds).
-- **IAM:** `dynamodb:BatchGetItem` on the Organizers table.
+- **IAM** (`infra/appsync-resolvers.ts`): `dynamodb:BatchGetItem` on the Organizers table (one call per batch). Plus
+  logs + X-Ray, like every function.

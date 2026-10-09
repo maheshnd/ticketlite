@@ -35,11 +35,14 @@ const emailWorker = createNodeFunction("email-worker", {
   codeDir: "../functions/email-worker/dist",
   environment: { BOOKINGS_TABLE: bookingsTable.name, SES_EMAIL: sesEmail },
   statements: [
+    // The event source mapping polls the queue AS this role (receive, delete after success, read settings).
     {
       Action: ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
       Resource: [emailQueue.arn],
     },
+    // handler.ts: SESv2 SendEmail, from (and, in the sandbox, to) the verified identity only.
     { Action: ["ses:SendEmail"], Resource: [sesIdentity.arn] },
+    // handler.ts: read the emailSentAt marker, then set it (a conditional UpdateItem).
     { Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"], Resource: [bookingsTable.arn] },
   ],
 });

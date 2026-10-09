@@ -1,11 +1,13 @@
 // Routes of the HTTP API: which requests reach the api Lambda, and which need a valid Cognito token first.
 // Every route points at the SAME integration (the api Lambda's live alias); Fastify does the fine routing.
-// Listing routes (instead of one catch-all) means unknown paths are rejected by API Gateway for free.
+// Listing routes (instead of one catch-all) means unknown paths are rejected by API Gateway for free
+// (docs/adr/0011-explicit-http-routes.md).
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { issuerUrl, userPoolClient } from "./cognito";
-import { stage } from "./config";
+import { flags, stage } from "./config";
 import { httpApi } from "./http-api";
+import { protectedRoutes, publicRoutes, sqlRoutes } from "./http-route-list";
 import { api, apiAlias } from "./lambdas";
 
 // Step 1: one integration = "forward to the api Lambda's live alias".
@@ -30,44 +32,11 @@ const jwtAuthorizer = new aws.apigatewayv2.Authorizer("cognito-jwt", {
   jwtConfiguration: { issuer: issuerUrl, audiences: [userPoolClient.id] },
 });
 
-// Step 3: PUBLIC routes: anyone may call them.
-const publicRoutes = [
-  "GET /api/health",
-  "GET /api/copy-info",
-  "GET /api/docs",
-  "GET /api/docs/{proxy+}",
-  "GET /api/events",
-  "GET /api/events/{id}",
-  // Auth endpoints are public by nature (you have no token yet). refresh/logout use the HttpOnly cookie.
-  "POST /api/auth/signup",
-  "POST /api/auth/confirm",
-  "POST /api/auth/login",
-  "POST /api/auth/refresh",
-  "POST /api/auth/logout",
-  "POST /api/auth/forgot",
-  "POST /api/auth/reset",
-  "GET /api/auth/oauth/start",
-  "GET /api/auth/oauth/callback",
-  // The session demo uses its own cookie, not a JWT.
-  "POST /api/demo/session/login",
-  "GET /api/demo/session/me",
-  "POST /api/demo/session/logout",
-];
+// Step 3: the route lists live in http-route-list.ts (plain data, so a unit test can compare them with the
+// Fastify app). The reports route is added only with enableSql.
+const protectedRouteKeys = [...protectedRoutes, ...(flags.enableSql ? sqlRoutes : [])];
 
-// Step 4: PROTECTED routes: API Gateway rejects them with 401 unless the JWT authorizer passes.
-// Finer rules (admin group, "only your own booking") are checked in Fastify. CONCEPT: rbac
-const protectedRoutes = [
-  "GET /api/me",
-  "POST /api/bookings",
-  "GET /api/bookings",
-  "GET /api/bookings/{id}",
-  "GET /api/admin/events",
-  "POST /api/admin/events",
-  "GET /api/admin/events/{id}",
-  "PUT /api/admin/events/{id}",
-  "POST /api/admin/uploads/poster",
-];
-
+// Step 4: one API Gateway route per key, all with the same target; protected ones use the JWT authorizer.
 // Pulumi resource names can't contain "/" or "{", so "GET /api/events/{id}" becomes "route-GET-api-events-id".
 const routeName = (routeKey: string) => `route-${routeKey.replace(/[^A-Za-z0-9]+/g, "-").replace(/-$/, "")}`;
 
@@ -75,7 +44,7 @@ const routes = [
   ...publicRoutes.map(
     (routeKey) => new aws.apigatewayv2.Route(routeName(routeKey), { apiId: httpApi.id, routeKey, target }),
   ),
-  ...protectedRoutes.map(
+  ...protectedRouteKeys.map(
     (routeKey) =>
       new aws.apigatewayv2.Route(routeName(routeKey), {
         apiId: httpApi.id,

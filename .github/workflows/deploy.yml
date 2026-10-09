@@ -82,10 +82,13 @@ jobs:
           --distribution-id "${{ steps.pulumi.outputs.distributionId }}"
           --paths "/*"
 
-      # Step 7: post-deploy smoke tests through CloudFront (read-only: health, headers, home page, axe).
-      # If they fail, roll back with docs/RUNBOOK.md#roll-back-a-deploy.
+      # Step 7: post-deploy smoke tests through CloudFront: health, headers, home page, axe, plus the write
+      # paths (a booking through the whole saga, a poster upload to S3), which catch missing IAM permissions.
+      # The write paths log in as a smoke admin that they manage with Cognito admin APIs, using this job's
+      # deploy-role credentials (hence USER_POOL_ID). If they fail, roll back with docs/RUNBOOK.md#roll-back-a-deploy.
       - run: pnpm --filter @ticketlite/e2e exec playwright install --with-deps chromium
       - name: Smoke tests
         env:
           BASE_URL: ${{ steps.pulumi.outputs.cloudFrontUrl }}
+          USER_POOL_ID: ${{ steps.pulumi.outputs.userPoolId }}
         run: pnpm --filter @ticketlite/e2e smoke

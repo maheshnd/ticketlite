@@ -8,4 +8,5 @@ Saga step 1 (`ReserveSeat` in `infra/booking-state-machine.asl.json`).
 - **Errors:** `SoldOut` (business: not retried, the saga marks the booking FAILED). Anything else is retried by
   the state machine (2 attempts, backoff).
 - **Idempotent:** a retry after success finds `seatReservedAt` set and returns without changing anything.
-- **IAM:** `dynamodb:UpdateItem` on the Events and Bookings tables (that's all `TransactWriteItems` needs).
+- **IAM** (`infra/stepfunctions.ts`): `dynamodb:UpdateItem` on the Events and Bookings tables. A
+  `TransactWriteItems` is authorized per item, and both items are `Update`s, so that's all it needs. Plus logs + X-Ray.

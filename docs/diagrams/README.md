@@ -15,14 +15,7 @@ Where the code and `BUILD-SPEC.md` differ, the diagrams follow the code.
 image. In VS Code, the "Draw.io Integration" extension (`hediet.vscode-drawio`) opens it as an editable diagram;
 save, and the image updates too. The icons come from draw.io's AWS 2024+ library (`mxgraph.aws4.*`).
 
-**Code checks found while drawing.** These are shown in the diagrams the way the code works today:
-1. The `api` Lambda's IAM policy (`infra/lambdas.ts`) only allows the Events, Organizers and Sessions tables.
-   The api also writes Bookings and IdempotencyKeys, calls `states:StartExecution` and `events:PutEvents`, signs S3
-   presigned POSTs, and (with flags on) reads the Redis secret, calls OpenSearch and the RDS Data API. Once deployed,
-   those calls get AccessDenied. Local dev doesn't show this because it uses your own credentials.
-   (`sql.apiStatements` is built in `infra/sql.ts` but never used.)
-2. `GET /api/search` and `GET /api/admin/reports` are Fastify routes but are missing from the route list in
-   `infra/http-routes.ts`, so API Gateway answers 404 before the Lambda runs.
+**Code checks found while drawing** (api IAM policy, two missing HTTP API routes): fixed in `fix/iam-and-routes`.
 
 Contents: [1 Overall](#1-overall-architecture) · [2 Request path](#2-request-path-and-caching) ·
 [3 Auth](#3-auth-flow) · [4 Booking saga](#4-booking-saga) · [5 Real-time GraphQL](#5-real-time-graphql) ·
@@ -86,7 +79,7 @@ DynamoDB streams feed the optional search index and SQL reports.
 **What can fail here and what happens then**
 - Too many requests → API Gateway answers 429 before any Lambda runs (cheap). With `enableWaf`, WAF blocks an IP after 1,000 requests in 5 minutes.
 - Redis slow or down → its 300 ms command timeout fires, the error counts as a miss, and DynamoDB answers. Slower, but correct.
-- An unknown path under `/api/*` → API Gateway returns 404 itself. This currently includes `/api/search` and `/api/admin/reports` (see "Code checks").
+- An unknown path under `/api/*` → API Gateway returns 404 itself, before any Lambda runs. A unit test (`api/test/http-routes.test.ts`) keeps the route list and the Fastify routes in sync, so a real route can't end up here by mistake.
 - A stale list is possible for up to 30 s (by design). Seat counts on the detail page stay fresh through the ETag check and AppSync updates.
 
 ---
@@ -274,12 +267,11 @@ arrows skip those hops; section C draws them because the JWT authorizer does rea
 | 5 | PUBLISHED events are indexed. Drafts and deleted events are removed. Requests are signed with SigV4. | OpenSearch | `functions/search-indexer/handler.ts`, `functions/shared/opensearch.ts` |
 | 6 | Records that still fail after 3 retries (the batch is split to isolate a bad record, max age 1 h) go to a failure queue, which has an alarm. | SQS | `infra/search.ts`, `infra/observability.ts` |
 | 7 | A visitor searches. | CloudFront, API Gateway | `web/src/features/search/search-queries.ts` |
-| 8 | Forwarded to the Lambda (but see the note below). | API Gateway, Lambda | `api/src/routes/search.ts` |
-| 9 | (flag on) A fuzzy `multi_match` (typos allowed, name counts 3×) plus a city aggregation. The response says `source: "opensearch"`. | OpenSearch | `api/src/services/search-service.ts`, `api/src/lib/opensearch.ts` |
+| 8 | A public route, forwarded to the Lambda. | API Gateway, Lambda | `infra/http-route-list.ts`, `api/src/routes/search.ts` |
+| 9 | (flag on) A fuzzy `multi_match` (typos allowed, name counts 3×) plus a city aggregation. The response says `source: "opensearch"`. The api role may only `POST`/`GET` `/events/_search`; the indexer may only `HEAD`/`PUT`/`DELETE` the `events` index. | OpenSearch | `api/src/services/search-service.ts`, `api/src/lib/opensearch.ts`, `infra/search.ts` (`searchAccess`) |
 | 10 | (flag off, today) The fallback: one indexed DynamoDB page (never a Scan), with the words matched in memory. The response says `source: "dynamodb-fallback"`. | DynamoDB | `api/src/services/search-service.ts` |
 
 **What can fail here and what happens then**
-- `GET /api/search` is not in `infra/http-routes.ts` yet, so the deployed API Gateway returns 404 for it. Locally it works.
 - The index lags the table by a moment (eventual consistency): a just-published event may not show up in search for a second or two.
 - One bad stream record blocks the records after it on its shard. Bisect + 3 retries + a 1-hour max age stop it blocking forever, and its metadata goes to the failure queue.
 - OpenSearch is down while the flag is on → `/api/search` returns an error. It does not switch to the fallback on its own.
@@ -297,7 +289,7 @@ arrows skip those hops; section C draws them because the JWT authorizer does rea
 | 3 | `/api/*` goes to API Gateway. | API Gateway | `infra/cdn.ts` |
 | 4 | The JWT authorizer verifies tokens with Cognito's public keys. | Cognito | `infra/http-routes.ts`, `infra/cognito.ts` |
 | 5 | API Gateway invokes the Lambda. A resource policy lets only this API (or this bucket) invoke it. | Lambda | `infra/http-routes.ts`, `infra/partner-api.ts`, `infra/uploads.ts` (`lambda.Permission`) |
-| 6 | Each function runs as its own IAM role: logs + X-Ray + only its own actions on its own resources. | IAM | `infra/iam.ts`, `infra/node-function.ts` |
+| 6 | Each function runs as its own IAM role: logs + X-Ray + only its own actions on its own resources. Each permission has a comment naming the code that needs it. | IAM | `infra/iam.ts`, `infra/node-function.ts`, `infra/lambdas.ts` (api role) |
 | 7 | Secrets are read at runtime and cached for 5 minutes. Their values are set by hand and never appear in code, env vars or Pulumi state. | Secrets Manager | `infra/secrets.ts`, `functions/booking-process-payment/handler.ts`, `api/src/lib/redis.ts` |
 | 8 | JSON log lines with a correlation id; tokens and cookies are redacted. Each log group keeps 7 days. | CloudWatch Logs | `infra/node-function.ts`, `api/src/app.ts`, `functions/shared/powertools.ts` |
 | 9 | Trace segments for Lambdas, Step Functions, AppSync and the REST API. (HTTP APIs don't support X-Ray.) | X-Ray | `infra/node-function.ts`, `infra/stepfunctions.ts`, `infra/appsync.ts`, `infra/partner-api.ts` |
@@ -309,7 +301,7 @@ arrows skip those hops; section C draws them because the JWT authorizer does rea
 | 15 | Every response carries HSTS, CSP, X-Frame-Options DENY, nosniff and Referrer-Policy. | CloudFront | `infra/cdn-policies.ts` |
 
 **What can fail here and what happens then**
-- A role that lacks an action → AccessDenied at runtime, a Lambda error and the `lambda-errors` alarm. This is what will happen to the api role today (see "Code checks").
+- A role that lacks an action → AccessDenied at runtime, a Lambda error and the `lambda-errors` alarm. The post-deploy smoke tests book a seat and upload a poster, so a missing permission on those paths fails the deploy job right away.
 - The payment secret has no value yet → the payment step logs a warning and charges "unsigned", so the first deploy still works.
 - No traffic = no data points. The alarms treat missing data as OK (`notBreaching`), so a quiet stack stays green.
 - The two SNS email subscriptions are pending until confirmed. Until then, alarms fire but nobody is told.
@@ -338,7 +330,7 @@ arrows skip those hops; section C draws them because the JWT authorizer does rea
 | 14 | `pulumi up` creates, updates or deletes resources. Then the web app is built with stack outputs (AppSync URL + public key). | every service in `infra/` | `infra/`, `.github/workflows/deploy.yml` |
 | 15 | `aws s3 sync`: `/_next/*` cached 1 year (immutable), HTML `max-age=0, s-maxage=60`. | S3 | `.github/workflows/deploy.yml` |
 | 16 | A CloudFront invalidation of `/*`, so users get the new HTML now. | CloudFront | `.github/workflows/deploy.yml` |
-| 17 | Read-only Playwright smoke tests through CloudFront: health, security headers, home page, axe. | CloudFront | `e2e/smoke/smoke.spec.ts`, `e2e/playwright.smoke.config.ts` |
+| 17 | Playwright smoke tests through CloudFront: health, security headers, home page, axe (read-only), then a booking through the whole saga to `CONFIRMED` and a poster presigned-POST upload, as a smoke admin the test manages with Cognito admin APIs. | CloudFront, Cognito, S3 | `e2e/smoke/smoke.spec.ts`, `e2e/smoke/write-paths.spec.ts`, `e2e/playwright.smoke.config.ts` |
 | 18 | Manual: the owner runs `destroy.yml` and types "destroy". | — (GitHub) | `.github/workflows/destroy.yml` |
 | 19 | `pulumi destroy` with the deploy role deletes everything in the stack. | every service in `infra/` | `.github/workflows/destroy.yml` |
 | 20 | Manual: the owner runs `seed.yml`. | — (GitHub) | `.github/workflows/seed.yml` |

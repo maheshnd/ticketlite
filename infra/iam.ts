@@ -10,15 +10,15 @@ export type PolicyStatement = {
 };
 
 // The four actions a Lambda needs to read a DynamoDB stream (poll-based event source mapping).
-export const streamReadAccess = (streamArn: pulumi.Input<string>): PolicyStatement => ({
-  Action: [
-    "dynamodb:GetRecords",
-    "dynamodb:GetShardIterator",
-    "dynamodb:DescribeStream",
-    "dynamodb:ListStreams",
-  ],
-  Resource: [streamArn],
-});
+// ListStreams has no resource type in IAM (it lists stream ARNs, never data), so it only works with "*";
+// scoped to the stream ARN it would silently match nothing.
+export const streamReadAccess = (streamArn: pulumi.Input<string>): PolicyStatement[] => [
+  {
+    Action: ["dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:DescribeStream"],
+    Resource: [streamArn],
+  },
+  { Action: ["dynamodb:ListStreams"], Resource: ["*"] },
+];
 
 // Creates one role for one function.
 // Step 1: the trust policy says WHO may wear the role: only the Lambda service.

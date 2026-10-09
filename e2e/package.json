@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1148.0",
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.0",
     "msw": "^3.0.2"

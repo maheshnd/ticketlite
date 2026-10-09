@@ -81,3 +81,7 @@ export const tableResources = (table: aws.dynamodb.Table) => [
   table.arn,
   table.arn.apply((arn) => `${arn}/index/*`),
 ];
+
+// Only the indexes of one table ("<arn>/index/*"): a Query on a GSI is authorized against this ARN,
+// while GetItem/PutItem/UpdateItem are authorized against the table ARN itself.
+export const indexArns = (table: aws.dynamodb.Table) => table.arn.apply((arn) => `${arn}/index/*`);

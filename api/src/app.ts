@@ -2,7 +2,7 @@
 // Two entry points share it: local.ts listens on a port, and lambda.ts hands it to Lambda.
 // Layers: routes/ handle HTTP -> services/ hold the logic -> repositories/ talk to DynamoDB.
 import cookie from "@fastify/cookie";
-import Fastify, { LogController } from "fastify";
+import Fastify, { LogController, type RouteOptions } from "fastify";
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from "fastify-type-provider-zod";
 import { config } from "./config";
 import type { App } from "./types";
@@ -66,8 +66,11 @@ async function registerRoutes(app: App) {
   await app.register(async (partner) => partnerRoutes(partner), { prefix: "/partner" });
 }
 
-export async function buildApp() {
+// `onRoute` is called once per registered route. Only the route-parity test uses it
+// (test/http-routes.test.ts compares the routes with infra/http-route-list.ts).
+export async function buildApp(options: { onRoute?: (route: RouteOptions) => void } = {}) {
   const app = createFastify();
+  if (options.onRoute) app.addHook("onRoute", options.onRoute);
 
   // Step 2: cross-cutting plugins, registered before the routes so they apply to all of them.
   registerCorrelationId(app);

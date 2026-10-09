@@ -162,6 +162,9 @@ importers:
 
   e2e:
     devDependencies:
+      '@aws-sdk/client-cognito-identity-provider':
+        specifier: ^3.1148.0
+        version: 3.1148.0
       '@axe-core/playwright':
         specifier: ^4.13.0
         version: 4.13.0(playwright-core@1.64.0)

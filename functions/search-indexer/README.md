@@ -12,5 +12,7 @@ Keeps the OpenSearch `events` index in sync with the DynamoDB Events table (a CQ
 - **Failure destination:** the SQS queue `search-indexer-failures` gets metadata about records that gave up.
   Re-index them by touching the events or by a backfill (see docs/RUNBOOK.md).
 - **Eventual consistency:** search results lag DynamoDB by about a second.
-- **IAM:** read the Events stream (`dynamodb:GetRecords`, `GetShardIterator`, `DescribeStream`, `ListStreams`),
-  `es:ESHttpGet/Put/Post/Delete/Head` on the domain, `sqs:SendMessage` on the failure queue.
+- **IAM** (`infra/search.ts`): read the Events stream (`dynamodb:GetRecords`, `GetShardIterator`, `DescribeStream`
+  on the stream; `ListStreams` on `*`, because it has no resource type); `es:ESHttpHead`, `ESHttpPut`,
+  `ESHttpDelete` on the `events` index only (`indices.exists`, `indices.create`, `index`, `delete`);
+  `sqs:SendMessage` on the failure queue. Plus logs + X-Ray.

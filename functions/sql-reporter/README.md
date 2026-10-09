@@ -8,6 +8,7 @@ Copies bookings into Aurora PostgreSQL for SQL reports. Only exists with `enable
 - **Scale to zero:** when the cluster is paused the first call fails while it resumes (~15 s); the batch is retried.
 - **Retries / failures:** like search-indexer: bisect on error, 5 attempts, records older than 1 hour dropped,
   on-failure destination `sql-reporter-failures`.
-- **IAM:** read the Bookings stream; `rds-data:ExecuteStatement`, `BatchExecuteStatement`, `BeginTransaction`,
-  `CommitTransaction`, `RollbackTransaction` on the cluster; `secretsmanager:GetSecretValue` on the cluster's
-  managed master secret; `sqs:SendMessage` on the failure queue.
+- **IAM** (`infra/sql.ts`): read the Bookings stream (as search-indexer); `rds-data:ExecuteStatement`,
+  `BeginTransaction`, `CommitTransaction`, `RollbackTransaction` on the cluster (Drizzle runs the migrations in a
+  transaction; it never uses `BatchExecuteStatement`); `secretsmanager:GetSecretValue` on the cluster's managed master
+  secret; `sqs:SendMessage` on the failure queue. Plus logs + X-Ray.

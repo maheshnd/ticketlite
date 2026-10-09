@@ -33,10 +33,12 @@ const posterProcessor = createNodeFunction("poster-processor", {
   codeDir: "../functions/poster-processor/dist",
   environment: { EVENTS_TABLE: eventsTable.name },
   statements: [
+    // handler.ts: a Range GET of the first 12 bytes, and DeleteObject for invalid files, under posters/ only.
     {
       Action: ["s3:GetObject", "s3:DeleteObject"],
       Resource: [postersBucket.arn.apply((arn) => `${arn}/posters/*`)],
     },
+    // handler.ts: set the event's posterKey (a conditional UpdateItem).
     { Action: ["dynamodb:UpdateItem"], Resource: [eventsTable.arn] },
     { Action: ["sqs:SendMessage"], Resource: [posterFailuresQueue.arn] }, // destinations use the function's role
   ],

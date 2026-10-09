@@ -9,5 +9,7 @@ Attaches an uploaded poster to its event.
 - **Retries:** Lambda retries a failed async invocation 2 times (max event age 1 hour).
 - **Failure destination:** after the retries, the event goes to the SQS queue `poster-failures` (14-day retention)
   for inspection and redrive (see docs/RUNBOOK.md).
-- **IAM:** `s3:GetObject` + `s3:DeleteObject` on `posters/*`, `dynamodb:UpdateItem` on Events,
-  `sqs:SendMessage` on the failure queue (destinations use the function's own role).
+- **IAM** (`infra/uploads.ts`): `s3:GetObject` (the Range read) + `s3:DeleteObject` (invalid files) on
+  `posters/*` only, `dynamodb:UpdateItem` on Events (`posterKey`), `sqs:SendMessage` on `poster-failures`
+  (destinations use the function's own role). Plus logs + X-Ray. The upload itself is authorized by the api
+  role's `s3:PutObject` on `posters/*` (a presigned POST carries the signer's permissions).

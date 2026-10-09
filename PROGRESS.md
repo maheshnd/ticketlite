@@ -17,6 +17,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | — | Readability pass (BUILD-SPEC §0) | ✅ done — no file over 150 lines, no function over ~40, nesting ≤ 3, every file has a header, 4 new CONCEPT tags (110 total); tests unchanged (116 + 8 E2E); `pulumi preview`: 167 to create |
 | — | Local development (`pnpm dev`, `pnpm dev:env`, `pnpm dev:mock`) | ✅ done — offline mode verified end to end (DynamoDB Local seeded, API + web, browser loads events); `dev:env` verified with simulated outputs (stack not deployed yet); previews: infra 167, bootstrap 6 to create, no errors |
 | — | Architecture diagrams (`docs/diagrams/`) | ✅ done — 9 draw.io diagrams (`.drawio.svg`, AWS 2024 icons) drawn from the code, with a step-by-step walkthrough; every resource type in `infra/` + `bootstrap/` checked against them |
+| — | IAM + routes fix (`fix/iam-and-routes`) | ✅ done — every Lambda role audited against its SDK calls (api role completed); `GET /api/search` + `GET /api/admin/reports` (flag) routed; route-parity unit test, write-path smoke tests, ADR 0011; 119 tests; `pulumi preview`: 168 to create (192 with search + cache + SQL) |
 
 ## Decisions and deviations from the spec
 
@@ -72,7 +73,7 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 48. **Optional SQL lives in `packages/sql`** (schema, migrations, reports), shared by `functions/sql-reporter` and the API. Migrations run on the reporter's cold start; `/api/admin/reports` answers 404 when the flag is off and 503 + Retry-After while the cluster resumes.
 49. **Encryption keys**: service defaults, no customer-managed KMS keys (ADR 0007).
 50. **E2E runs against a "mock mode" static build** (`NEXT_PUBLIC_MOCK=1`): MSW in the browser serves the same handlers as the component tests (REST, AppSync GraphQL and the AppSync WebSocket). The MSW worker is loaded with `next/dynamic` + `ssr: false` (`msw/browser` maps to null for Node) and only copied into the mock build. `e2e/serve.mjs` applies the CloudFront rewrite, so routing is tested too.
-51. **Post-deploy smoke tests are a separate read-only Playwright config** (`e2e/playwright.smoke.config.ts`): health, security headers, home page, axe.
+51. **Post-deploy smoke tests are a separate read-only Playwright config** (`e2e/playwright.smoke.config.ts`): health, security headers, home page, axe. (Decision 63 adds write-path tests to the same config.)
 52. **The e2e package's script is `e2e`, not `test`**, so `pnpm test` stays unit/component only. Coverage: `pnpm test:coverage` in CI, uploaded as an artifact, no gate.
 53. **`enableCustomDomain` implemented** (`infra/domain.ts`): DNS-validated ACM certificate + CloudFront alias + Route 53 A/AAAA records; needs `customDomain` and `hostedZoneId` config.
 54. **`web` declares `vitest` itself**: pnpm "peer variants" otherwise attach jest-dom's matcher types to a different vitest copy.
@@ -81,12 +82,25 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 57. **Local development modes** (README "Local development"): `pnpm dev` = offline (DynamoDB Local, seeded on every start) or connected (when `api/.env.local` exists); `pnpm dev:env` writes `api/.env.local` + `web/.env.local` from an allow-list of Pulumi outputs and refuses `[secret]` values; `pnpm dev:mock` = the MSW mock-mode build. New stack outputs: sessions/bookings/idempotency table names, `bookingStateMachineArn`, `opensearchEndpoint`. Optional outputs are `""` (not undefined) when their flag is off, so previews have no warnings.
 58. **`web/.env.development` is committed** (`NEXT_PUBLIC_API_URL=http://localhost:3000`, not a secret, used by `next dev` only). The api's dev script loads `.env` then `.env.local`; an empty `DYNAMODB_ENDPOINT` means "real DynamoDB".
 59. **AWS credentials**: the `ticketlite` profile is an IAM user with an access key (no SSO). Docs use `AWS_PROFILE=ticketlite` only.
+60. **api role rebuilt from an audit of every SDK call** (`apiStatements` in `infra/lambdas.ts`, one commented entry per
+    call site): item actions on table ARNs, `Query` only on `index/*`; `states:StartExecution` on the saga,
+    `events:PutEvents` on the bus, `s3:PutObject` on `posters/*`; flag-gated Redis secret, OpenSearch and
+    `sql.apiStatements`. The unused Organizers grant and `ORGANIZERS_TABLE` env var were removed from the api.
+61. **Other roles tightened**: `dynamodb:ListStreams` moved to `Resource: "*"` (it has no resource type, so the
+    stream-ARN grant matched nothing); search-indexer gets only `HEAD/PUT/DELETE` on the `events` index, the api only
+    `POST/GET events/_search`; sql-reporter lost `rds-data:BatchExecuteStatement` (Drizzle never calls it).
+62. **Route list moved to `infra/http-route-list.ts`** (plain data) so `api/test/http-routes.test.ts` can compare it
+    with the Fastify routes (ADR 0011). `buildApp()` takes an optional `onRoute` listener for that test.
+    `GET /api/admin/reports` is routed only with `enableSql`; with the flag off API Gateway's 404 reaches the
+    Reports page, which already handles 404.
+63. **Write-path smoke tests** (`e2e/smoke/write-paths.spec.ts`): a smoke admin managed with Cognito admin APIs (deploy
+    role credentials, random password per run), a reused "Smoke test (automated)" event (published only during the
+    run), a booking that must reach `CONFIRMED`, and a presigned POST upload that poster-processor must attach.
+    Skipped without `USER_POOL_ID`. Side effect: one confirmation email + admin notification per deploy.
 
 ## Open questions
 
-- **api Lambda IAM is incomplete** (found while drawing the diagrams). `infra/lambdas.ts` grants only Events, Organizers and Sessions, but the api also writes Bookings + IdempotencyKeys, calls `states:StartExecution`, `events:PutEvents`, presigns S3 POSTs (`s3:PutObject` on `posters/*`) and, with flags on, reads the Redis secret, calls OpenSearch and the Data API (`sql.apiStatements` is built but unused). Deployed, bookings and poster uploads will fail with AccessDenied.
-- **`GET /api/search` and `GET /api/admin/reports` are missing from `infra/http-routes.ts`**, so API Gateway returns 404 for them in AWS (they work locally).
-- None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins).
+- None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins). The write-path smoke tests (decision 63) are the first real check of the IAM policies; they can't run before the stack exists.
 
 ## Next steps
 

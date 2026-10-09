@@ -14,3 +14,4 @@ Short records of the decisions that shaped TicketLite: context, decision, altern
 | [0008](0008-sql-reporting.md) | Optional SQL reporting: Aurora Serverless v2 + Data API + Drizzle |
 | [0009](0009-static-export.md) | Next.js static export on S3 + CloudFront (vs SSR/ISR) |
 | [0010](0010-pulumi-and-github-oidc.md) | Pulumi + GitHub Actions with OIDC as the only deployer |
+| [0011](0011-explicit-http-routes.md) | Explicit HTTP API routes + a parity test (vs one catch-all route) |
