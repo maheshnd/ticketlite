@@ -18,6 +18,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | — | Local development (`pnpm dev`, `pnpm dev:env`, `pnpm dev:mock`) | ✅ done — offline mode verified end to end (DynamoDB Local seeded, API + web, browser loads events); `dev:env` verified with simulated outputs (stack not deployed yet); previews: infra 167, bootstrap 6 to create, no errors |
 | — | Architecture diagrams (`docs/diagrams/`) | ✅ done — 9 draw.io diagrams (`.drawio.svg`, AWS 2024 icons) drawn from the code, with a step-by-step walkthrough; every resource type in `infra/` + `bootstrap/` checked against them |
 | — | IAM + routes fix (`fix/iam-and-routes`) | ✅ done — every Lambda role audited against its SDK calls (api role completed); `GET /api/search` + `GET /api/admin/reports` (flag) routed; route-parity unit test, write-path smoke tests, ADR 0011; 119 tests; `pulumi preview`: 168 to create (192 with search + cache + SQL) |
+| — | Deterministic build | ✅ done — explicit sequential `build:bundles` / `build` used by `ci.yml` + `deploy.yml`; root cause was a negative filter re-running the root build in parallel (decision 64); 5/5 clean full builds passed; `pulumi preview`: 168 to create |
 
 ## Decisions and deviations from the spec
 
@@ -97,6 +98,12 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
     role credentials, random password per run), a reused "Smoke test (automated)" event (published only during the
     run), a booking that must reach `CONFIRMED`, and a presigned POST upload that poster-processor must attach.
     Skipped without `USER_POOL_ID`. Side effect: one confirmation email + admin notification per deploy.
+64. **Deterministic build** (root `build:bundles` + `build`, README "Build"). Root cause of the one-time Lambda
+    bundle failure: `pnpm --filter "!@ticketlite/web" build` (used locally, in `ci.yml`'s preview job and in
+    `deploy.yml`) also selected the ROOT package, whose `build` script (`pnpm -r build`) built api, functions and
+    graphql a second time, in parallel, into the same `dist/` folders (and built web, which the filter meant to skip).
+    Not a dependency-order problem: `packages/shared` and `packages/sql` have no build step. Now one package at a
+    time: graphql → functions → api (→ web). Verified: 5 clean full builds in a row, all passed, each package built once.
 
 ## Open questions
 

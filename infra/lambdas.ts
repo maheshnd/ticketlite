@@ -55,7 +55,7 @@ const apiStatements: PolicyStatement[] = [
   ...(sql ? sql.apiStatements : []),
 ];
 
-// Step 2: the api function. The code is the esbuild bundle (`pnpm build` at the repo root first).
+// Step 2: the api function. The code is the esbuild bundle (`pnpm build:bundles` at the repo root first).
 // publish: true creates a new numbered version on every code change. CONCEPT: lambda-versions
 export const api = createNodeFunction("api", {
   codeDir: "../api/dist",

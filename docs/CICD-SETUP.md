@@ -102,7 +102,7 @@ The PR gets a comment with the `pulumi preview` output. Merging it runs the depl
 
 ## Day to day
 - Change code → open a PR → read the preview comment → merge → CI deploys.
-- Locally you may only run `AWS_PROFILE=ticketlite pulumi preview` (run `pnpm build` at the repo root first).
+- Locally you may only run `AWS_PROFILE=ticketlite pulumi preview` (run `pnpm build:bundles` at the repo root first).
 - Done studying for a while? **Actions → destroy → Run workflow**, type `destroy`. Run **deploy** manually to bring everything back.
 
 ## A future `prod` stack (not built)

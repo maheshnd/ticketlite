@@ -3,8 +3,8 @@
 The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 
 - **Deploys:** only through GitHub Actions (`.github/workflows/deploy.yml`) on merge to `main`.
-- **Locally:** you may only preview: `AWS_PROFILE=ticketlite pulumi preview`. Run `pnpm build` at the repo root
-  first: Pulumi reads `../api/dist`, `../functions/*/dist` and `../graphql/dist`.
+- **Locally:** you may only preview: `AWS_PROFILE=ticketlite pulumi preview`. Run `pnpm build:bundles` at the
+  repo root first: Pulumi reads `../api/dist`, `../functions/*/dist` and `../graphql/dist`.
 - **Config:** `Pulumi.dev.yaml` holds the region, default tags, the cost-safety flags (all `false`) and emails.
   `config.ts` reads them once.
 - **Tests:** `pnpm --filter @ticketlite/infra test` (the CloudFront rewrite function).

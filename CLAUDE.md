@@ -24,7 +24,7 @@ The full spec is `BUILD-SPEC.md`; build progress (and where to resume) is `PROGR
 The repo is **one pnpm workspace** (`pnpm-workspace.yaml`, one root `pnpm-lock.yaml`). Run `pnpm install` at the root.
 Package names are `@ticketlite/<folder>`; run one package's script with `pnpm --filter @ticketlite/api <script>`.
 Local dev: `pnpm dev` (offline, or connected after `pnpm dev:env`), `pnpm dev:mock` (no AWS, no Docker); see README "Local development".
-Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:coverage`, `pnpm e2e`, `pnpm build`, `pnpm format`, `pnpm check:concepts`, `pnpm db:local`.
+Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:coverage`, `pnpm e2e`, `pnpm build` (`pnpm build:bundles` = only what Pulumi needs, no web), `pnpm format`, `pnpm check:concepts`, `pnpm db:local`.
 Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm check:concepts`, run in CI).
 
 ## Rules

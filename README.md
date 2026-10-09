@@ -68,9 +68,25 @@ pnpm typecheck && pnpm lint && pnpm check:concepts   # types, lint, every CONCEP
 pnpm test            # unit + component tests (Vitest, React Testing Library, MSW, aws-sdk-client-mock)
 pnpm test:coverage   # the same with coverage reports
 pnpm e2e             # Playwright journeys + axe accessibility checks
-pnpm build           # Lambda bundles, AppSync resolvers, static web export
+pnpm build           # build:bundles, then the static web export
+pnpm build:bundles   # only what Pulumi needs: AppSync resolvers, Lambda bundles (faster)
 cd infra && AWS_PROFILE=ticketlite pulumi preview    # the ONLY Pulumi command allowed locally
 ```
+
+### Build
+
+The build runs **one package at a time, in a fixed order** (root `package.json`), so two runs can never write
+the same `dist/` folder at once:
+
+1. `packages/shared`, `packages/sql`: nothing to build. They export their TypeScript source, and esbuild compiles it
+   into each bundle below.
+2. `graphql` → `graphql/dist/*.js` (AppSync resolvers), `functions` → `functions/*/dist/` (one bundle per Lambda),
+   `api` → `api/dist/` (the Fastify Lambda). Together: `pnpm build:bundles`, what `pulumi preview`/`up` reads.
+3. `web` → `web/out/` (only `pnpm build`; CI builds it after `pulumi up` with the stack outputs).
+
+Don't build with a negative filter such as `pnpm --filter "!@ticketlite/web" build`: it also selects the **root**
+package, whose own `build` script builds everything again, in parallel, into the same `dist/` folders. That race made
+one build fail with half-deleted bundles (PROGRESS.md, decision 64).
 
 ## How deploys work
 

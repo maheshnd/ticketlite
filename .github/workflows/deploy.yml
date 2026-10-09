@@ -35,7 +35,10 @@ jobs:
 
       # Step 1: a last safety net (a push straight to main skips the PR checks), then the Lambda bundles.
       - run: pnpm typecheck && pnpm test
-      - run: pnpm --filter "!@ticketlite/web" build
+      # build:bundles: AppSync resolvers, then the functions, then the api, one at a time (README "Build").
+      # Never a negative filter like --filter "!@ticketlite/web": it selects the root package too, which
+      # builds everything a second time in parallel into the same dist/ folders.
+      - run: pnpm build:bundles
 
       # Step 2: the DEPLOY role. Its trust policy only accepts tokens from the main branch.
       - uses: aws-actions/configure-aws-credentials@v6
