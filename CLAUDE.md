@@ -41,6 +41,7 @@ Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm
   - Prettier formats code only. Markdown is hand-formatted (`.prettierignore`).
   - AppSync resolvers: `@aws-appsync/eslint-plugin` doesn't support ESLint 10 / TS 6. Check resolvers with `AWS_PROFILE=ticketlite pnpm --filter @ticketlite/graphql evaluate` (read-only `aws appsync evaluate-code`). APPSYNC_JS has no try/catch, throw, `++` or classes.
   - MSW 3: GraphQL mocks come from `msw/graphql` via `graphql.link(url)`; the option is `onUnhandledFrame` (not `onUnhandledRequest`). `msw/browser` maps to null for Node, so the browser worker is loaded with `next/dynamic` + `ssr: false` (`web/src/components/MockGate.tsx`).
+  - Next.js 16 `next dev` writes `web/AGENTS.md` (Next's own agent notes) and re-creates it if deleted. It is committed on purpose so `pnpm dev` doesn't dirty the tree.
   - pnpm creates "peer variants" of vitest; a package using `@testing-library/jest-dom` must declare `vitest` itself (see `web/package.json`), or the matcher types attach to another copy.
 - **Infra structure.** One Pulumi file per service area (`infra/iam.ts`, `infra/lambdas.ts`, `infra/http-api.ts`, …). `index.ts` only wires them together and exports outputs.
 - **Cost safety.** CloudWatch log groups get 7-day retention. API throttling limits stay low. IAM is least-privilege.
