@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!web/.env.development
 dist/
 # Next.js build output and static export
 .next/

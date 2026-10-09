@@ -17,7 +17,10 @@
     "check:concepts": "tsx scripts/check-concepts.ts",
     "db:local": "DYNAMODB_ENDPOINT=http://localhost:8000 tsx scripts/create-local-tables.ts && DYNAMODB_ENDPOINT=http://localhost:8000 tsx scripts/seed.ts",
     "test:coverage": "pnpm -r --if-present test --coverage --coverage.reporter=text-summary --coverage.reporter=html",
-    "e2e": "pnpm --filter @ticketlite/e2e build:mock && pnpm --filter @ticketlite/e2e e2e"
+    "e2e": "pnpm --filter @ticketlite/e2e build:mock && pnpm --filter @ticketlite/e2e e2e",
+    "dev": "tsx scripts/dev.ts",
+    "dev:env": "tsx scripts/dev-env.ts",
+    "dev:mock": "pnpm --filter @ticketlite/e2e build:mock && node e2e/serve.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1148.0",

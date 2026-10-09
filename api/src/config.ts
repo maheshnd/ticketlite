@@ -13,7 +13,8 @@ const EnvSchema = z.object({
   LOCAL_WEB_ORIGIN: z.url().default("http://localhost:3001"),
   AWS_REGION: z.string().default("us-east-1"), // set by Lambda itself in the cloud
   // Only set locally: points the SDK at DynamoDB Local (docker-compose) instead of AWS.
-  DYNAMODB_ENDPOINT: z.url().optional(),
+  // An empty value counts as unset: `pnpm dev:env` writes "DYNAMODB_ENDPOINT=" to use AWS instead.
+  DYNAMODB_ENDPOINT: z.preprocess((value) => (value === "" ? undefined : value), z.url().optional()),
   // Table names come from Pulumi in the cloud. The defaults match scripts/create-local-tables.ts.
   EVENTS_TABLE: z.string().default("Events"),
   ORGANIZERS_TABLE: z.string().default("Organizers"),

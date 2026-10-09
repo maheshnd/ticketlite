@@ -14,7 +14,8 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | ✅ done — `pulumi preview`: 147 to create (157 with search + cache on); search, analyzer and cache checked against local OpenSearch 3.7 + Redis; 109 tests |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | ✅ done — `pulumi preview`: 167 to create (192 with every flag on); 116 tests |
 | M7 | Playwright + axe, all docs, final pass | ✅ done — `pulumi preview`: 167 to create (172 with a custom domain); 116 unit/component tests + 8 E2E journeys with axe (0 violations) |
-| — | Readability pass (BUILD-SPEC §0) | ✅ done — no file over 150 lines, no function over ~40, nesting ≤ 3, every file has a header, 4 new CONCEPT tags (110 total); tests unchanged (116 + 8 E2E). **`pulumi preview` not run**: the `ticketlite` SSO session had expired; Pulumi resource names were not changed, so it should still show 167 |
+| — | Readability pass (BUILD-SPEC §0) | ✅ done — no file over 150 lines, no function over ~40, nesting ≤ 3, every file has a header, 4 new CONCEPT tags (110 total); tests unchanged (116 + 8 E2E); `pulumi preview`: 167 to create |
+| — | Local development (`pnpm dev`, `pnpm dev:env`, `pnpm dev:mock`) | ✅ done — offline mode verified end to end (DynamoDB Local seeded, API + web, browser loads events); `dev:env` verified with simulated outputs (stack not deployed yet); previews: infra 167, bootstrap 6 to create, no errors |
 
 ## Decisions and deviations from the spec
 
@@ -76,10 +77,12 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 54. **`web` declares `vitest` itself**: pnpm "peer variants" otherwise attach jest-dom's matcher types to a different vitest copy.
 55. **ADRs 0001, 0003, 0009, 0010 added**; ADR index in `docs/adr/README.md`. Deep-dive docs: EVENT-DRIVEN, SEARCH, CACHING.
 56. **Readability pass**: `cdn.ts` → `cdn.ts` + `cdn-policies.ts`; `appsync.ts` → `appsync.ts` + `appsync-resolvers.ts`; MSW handlers split per API area; long functions split into named steps (saga handlers, email worker, infra `create*` functions, route registrations, React components); `announceOutcome()` shared by Confirm/ReleaseSeat; `useBookEvent` holds the Idempotency-Key logic. Clever code replaced with plain code: the token-refresh promise chain, the AppSync pipeline tuple loop, the sql-reporter `??=` migration promise, and the test fake's UpdateExpression parser (the idempotency repository now finishes a key with a plain `Put` of the whole record; the stored item is identical).
+57. **Local development modes** (README "Local development"): `pnpm dev` = offline (DynamoDB Local, seeded on every start) or connected (when `api/.env.local` exists); `pnpm dev:env` writes `api/.env.local` + `web/.env.local` from an allow-list of Pulumi outputs and refuses `[secret]` values; `pnpm dev:mock` = the MSW mock-mode build. New stack outputs: sessions/bookings/idempotency table names, `bookingStateMachineArn`, `opensearchEndpoint`. Optional outputs are `""` (not undefined) when their flag is off, so previews have no warnings.
+58. **`web/.env.development` is committed** (`NEXT_PUBLIC_API_URL=http://localhost:3000`, not a secret, used by `next dev` only). The api's dev script loads `.env` then `.env.local`; an empty `DYNAMODB_ENDPOINT` means "real DynamoDB".
+59. **AWS credentials**: the `ticketlite` profile is an IAM user with an access key (no SSO). Docs use `AWS_PROFILE=ticketlite` only.
 
 ## Open questions
 
-- Run `AWS_PROFILE=ticketlite pulumi preview` once the SSO session is renewed (`aws sso login --profile ticketlite` or `aws login --profile ticketlite`) to confirm the readability pass still previews 167 resources.
 - None blocking. Untested until the first deploy (unit tests mock them): real Cognito login, the managed-login PKCE redirect, CloudFront routing, and that CloudFront forwards the `Authorization` header to API Gateway with `AllViewerExceptHostHeader` + `CachingDisabled` (AWS's documented setup for API Gateway origins).
 
 ## Next steps

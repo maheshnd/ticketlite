@@ -23,6 +23,7 @@ The full spec is `BUILD-SPEC.md`; build progress (and where to resume) is `PROGR
 
 The repo is **one pnpm workspace** (`pnpm-workspace.yaml`, one root `pnpm-lock.yaml`). Run `pnpm install` at the root.
 Package names are `@ticketlite/<folder>`; run one package's script with `pnpm --filter @ticketlite/api <script>`.
+Local dev: `pnpm dev` (offline, or connected after `pnpm dev:env`), `pnpm dev:mock` (no AWS, no Docker); see README "Local development".
 Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:coverage`, `pnpm e2e`, `pnpm build`, `pnpm format`, `pnpm check:concepts`, `pnpm db:local`.
 Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm check:concepts`, run in CI).
 
@@ -45,6 +46,7 @@ Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm
 - **Cost safety.** CloudWatch log groups get 7-day retention. API throttling limits stay low. IAM is least-privilege.
 - **Deploys happen ONLY through GitHub Actions** on merge to `main`.
   - Locally, the only allowed Pulumi command is `AWS_PROFILE=ticketlite pulumi preview` (in `infra/` or `bootstrap/`).
+  - The `ticketlite` AWS profile is an IAM user with an access key (no SSO / Identity Center). Always pass credentials as `AWS_PROFILE=ticketlite`; never suggest SSO login commands.
   - **Never run `pulumi up` or `pulumi destroy`** locally. The one exception is `bootstrap/`, which the owner runs once by hand. Claude never runs it.
   - Nothing in `infra/` may assume a laptop (no profiles, no local paths outside the repo).
 - **Secrets.** Never put secrets in code or env vars. Never commit `dist/` or `.env`. CI secrets live in GitHub settings only.

@@ -10,7 +10,7 @@ You do steps 1–5 once, in this order.
 ## 0. Before you start
 ```bash
 pulumi whoami                       # logged in to Pulumi Cloud?
-aws sts get-caller-identity --profile ticketlite   # AWS session still valid? If not: aws login --profile ticketlite
+AWS_PROFILE=ticketlite aws sts get-caller-identity   # do the ticketlite IAM user's access keys work?
 gh auth status                      # GitHub CLI logged in as maheshnd?
 ```
 

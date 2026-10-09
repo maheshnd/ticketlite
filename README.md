@@ -21,21 +21,45 @@ Next.js + React Query, Pulumi and GitHub Actions. Every file is commented for st
 | Deep dives | [EVENT-DRIVEN](docs/EVENT-DRIVEN.md) · [SEARCH](docs/SEARCH.md) · [CACHING](docs/CACHING.md) · [CODE-REVIEW](docs/CODE-REVIEW.md) |
 | Build status, decisions, deviations from the spec | [PROGRESS.md](PROGRESS.md), [BUILD-SPEC.md](BUILD-SPEC.md) |
 
-## Quick start (local)
+## Local development
 
-Needs Node 24, pnpm 10.33.2 (`corepack enable`) and Docker.
+Needs Node 24, pnpm 10.33.2 (`corepack enable`) and, for the first two modes, Docker. Run `pnpm install` once.
+There are three ways to run TicketLite on your laptop:
 
-```bash
-pnpm install                       # one install for the whole workspace
-docker compose up -d               # Redis, OpenSearch, DynamoDB Local (REDIS_PORT=6380 if 6379 is taken)
-pnpm db:local                      # create the tables in DynamoDB Local and add sample events
-cp api/.env.example api/.env       # local settings (add Cognito IDs from `pulumi stack output` for login)
-pnpm --filter @ticketlite/api dev  # API on http://localhost:3000 (docs at /api/docs)
-NEXT_PUBLIC_API_URL=http://localhost:3000 pnpm --filter @ticketlite/web dev   # web on http://localhost:3001
-```
+| Mode | Start | Needs | What it is |
+|---|---|---|---|
+| **Mock** | `pnpm dev:mock` → http://localhost:4173 | Nothing (no AWS, no Docker) | The static site built with `NEXT_PUBLIC_MOCK=1`: MSW answers every REST, GraphQL and WebSocket call inside the browser, using the same handlers as the tests. Log in as `test@ticketlite.dev` / `Tickets2026x` (an admin). No hot reload: re-run after a change. |
+| **Offline** | `pnpm dev` → web http://localhost:3001, API http://localhost:3000 (docs at `/api/docs`) | Docker | Real API and web dev servers (hot reload) on local stand-ins: DynamoDB Local (tables + sample events created on every start), Redis and OpenSearch containers. Nothing touches AWS. |
+| **Connected** | `pnpm dev:env` once (and after each deploy), then `pnpm dev` | Docker, the deployed `dev` stack, `AWS_PROFILE=ticketlite` credentials | The same local API and web, but talking to the deployed AWS resources: real DynamoDB tables, Cognito, Step Functions, S3, EventBridge and AppSync. |
 
-Everything without AWS or Docker, in the browser with mocked APIs: `pnpm e2e` (builds the mock-mode site and runs
-Playwright), or `pnpm --filter @ticketlite/e2e build:mock && node e2e/serve.mjs` and open http://localhost:4173.
+**`pnpm dev`** starts the containers, seeds DynamoDB Local (offline mode only), then runs the API and the web app side by
+side; Ctrl+C stops both. It is in connected mode when `api/.env.local` exists. Delete that file to go back offline.
+If port 6379 is taken: `REDIS_PORT=6380 pnpm dev`.
+
+**`pnpm dev:env`** reads the stack outputs (`pulumi stack output --json` in `infra/`) and writes `api/.env.local`
+and `web/.env.local`: table names, Cognito IDs, the state machine ARN, bucket names, the event bus, the AppSync URL
+and its public API key, and the API URL. It never writes secrets: only an allow-list of outputs is written, and secret
+outputs are refused. Secret values (payment key, Upstash URL) are read from Secrets Manager at runtime. Both files are
+git-ignored. If the stack has not been deployed yet, the script says so and writes nothing.
+
+### What works where
+
+| Feature | Mock | Offline | Connected |
+|---|---|---|---|
+| Browse events, city filter, pagination, event detail (ETag) | ✅ (fake data) | ✅ | ✅ |
+| Search | ✅ (fake) | ✅ DynamoDB fallback; full OpenSearch with `OPENSEARCH_ENDPOINT=http://localhost:9200` after `pnpm tsx scripts/index-local-search.ts` | ✅ fallback, or OpenSearch with `enableSearch` |
+| Cache + rate limit (Redis) | — | ✅ with `CACHE_ENABLED=true REDIS_URL=redis://localhost:6379` | ✅ local Redis the same way |
+| Sign up, login, refresh, logout, `/api/me`, PKCE demo | ✅ (fake) | ❌ needs Cognito | ✅ |
+| Session demo (`/api/demo/session/*`) | — | ❌ login needs Cognito | ✅ |
+| Booking (idempotency + Step Functions saga) and booking status | ✅ (fake saga) | ❌ needs Step Functions + Cognito | ✅ (real saga, real emails) |
+| Admin create/edit (optimistic locking) | ✅ (fake) | ❌ admin needs Cognito | ✅ (your user in the `admin` group) |
+| Poster upload | — | ❌ needs S3 | ✅ |
+| Live seat counts, organizer names (AppSync) | ✅ (fake WebSocket) | ❌ | ✅ |
+| Confirmation email, admin notifications | — | ❌ | ✅ |
+| SQL reports | ✅ (fake) | ❌ | ✅ only with `enableSql` |
+
+Connected mode uses your own AWS identity (`AWS_PROFILE=ticketlite`), not the Lambda roles, so permission problems
+can differ from the cloud; the deployed app at the CloudFront URL is the final check.
 
 ## Checks
 

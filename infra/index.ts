@@ -10,7 +10,9 @@ import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { apiKey, graphqlUrl } from "./appsync";
 import "./appsync-resolvers";
 import * as pulumi from "@pulumi/pulumi";
-import { eventsTable, organizersTable } from "./dynamodb";
+import { bookingsTable, eventsTable, idempotencyTable, organizersTable, sessionsTable } from "./dynamodb";
+import { search } from "./search";
+import { bookingStateMachine } from "./stepfunctions";
 import { appUrl, distribution } from "./cdn";
 import { postersBucket, webBucket } from "./storage";
 
@@ -33,6 +35,13 @@ export const cognitoDomain = cognitoDomainUrl;
 // Table names, read by the seed workflow (seed.yml).
 export const eventsTableName = eventsTable.name;
 export const organizersTableName = organizersTable.name;
+export const sessionsTableName = sessionsTable.name;
+export const bookingsTableName = bookingsTable.name;
+export const idempotencyTableName = idempotencyTable.name;
+
+// For local development against the deployed stack (`pnpm dev:env` writes these into api/.env.local).
+export const bookingStateMachineArn = bookingStateMachine.arn;
+export const opensearchEndpoint = search?.endpoint ?? ""; // empty when enableSearch is off
 
 // AppSync, baked into the web app at build time (deploy.yml). The API key is public by design (it ships in
 // the browser's JavaScript), so it is deliberately exported as a plain value, not a Pulumi secret.
@@ -45,7 +54,7 @@ export const emailDlqUrl = emailDlq.url;
 
 // Secret ARNs: set their values by hand once (docs/CICD-SETUP.md). Never the values themselves.
 export const paymentSecretArn = paymentSecret.arn;
-export const redisSecretArn = redisSecret?.arn;
+export const redisSecretArn = redisSecret?.arn ?? ""; // empty when enableCache is off
 
 // Partner REST API. The key IS a credential (it identifies and meters a partner), so it stays a secret:
 //   pulumi stack output partnerApiKey --show-secrets
