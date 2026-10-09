@@ -19,7 +19,7 @@ flowchart LR
 | Service | Model | Ordering | Retention / replay | Use it when | In TicketLite |
 |---|---|---|---|---|---|
 | **SQS** | Queue: one consumer group pulls messages | Standard: best effort (FIFO queues: strict per group) | Up to 14 days; DLQ for failures | Buffer work, absorb spikes, retry a consumer that may fail | `email-queue` (+ DLQ), `poster-failures`, `search-indexer-failures` |
-| **SNS** | Pub/sub push: every subscriber gets a copy (fan-out) | None (FIFO topics exist) | None (deliver now or retry) | Notify many endpoints (email, SMS, HTTP, SQS) | `admin-notifications` (email), alarm topic (M6) |
+| **SNS** | Pub/sub push: every subscriber gets a copy (fan-out) | None (FIFO topics exist) | None (deliver now or retry) | Notify many endpoints (email, SMS, HTTP, SQS) | `admin-notifications` (email), `alarms` topic |
 | **EventBridge** | Event bus + content-based routing rules | None | Optional archive + replay | Decouple producers from consumers; route by event content; SaaS/AWS events | Custom bus `ticketlite-<stage>`: BookingConfirmed/Failed, EventCreated |
 | **DynamoDB Streams** | Change log of one table, read by Lambda in order per item | Per item (per shard) | 24 hours | React to every change of a table (CDC), build read models | Events table → search-indexer (CQRS) |
 | **Kinesis Data Streams** | Partitioned log, many independent readers | Per partition key | 1–365 days, replay any time | High-throughput streams (clicks, telemetry), multiple consumers re-reading | Not used: our volume is tiny. Would replace the stream if we needed many readers or replay |

@@ -1,5 +1,5 @@
 # The ONLY way TicketLite gets deployed: a push to main (a merged PR) or a manual run from main.
-#   1. test + build   2. pulumi up   3. upload the web app to S3   4. invalidate CloudFront   5. smoke test
+#   1. test + build   2. pulumi up   3. upload the web app to S3   4. invalidate CloudFront   5. Playwright smoke tests
 # Pull requests are checked by ci.yml instead (with a read-only preview).
 name: deploy
 
@@ -54,7 +54,7 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
-      # Step 4: build the web app AFTER pulumi up, because later milestones bake stack outputs
+      # Step 4: build the web app AFTER pulumi up, because stack outputs are baked
       # (the AppSync URL, the Cognito domain) into it as NEXT_PUBLIC_* variables.
       # The AppSync URL and its PUBLIC API key are baked into the JavaScript (they are not secrets).
       - run: pnpm --filter @ticketlite/web build
@@ -82,10 +82,10 @@ jobs:
           --distribution-id "${{ steps.pulumi.outputs.distributionId }}"
           --paths "/*"
 
-      # Step 7: post-deploy smoke test through CloudFront. M7 replaces it with Playwright.
-      - name: Smoke test
+      # Step 7: post-deploy smoke tests through CloudFront (read-only: health, headers, home page, axe).
+      # If they fail, roll back with docs/RUNBOOK.md#roll-back-a-deploy.
+      - run: pnpm --filter @ticketlite/e2e exec playwright install --with-deps chromium
+      - name: Smoke tests
         env:
-          URL: ${{ steps.pulumi.outputs.cloudFrontUrl }}
-        run: |
-          curl -fsS "$URL/api/health"
-          curl -fsS "$URL/" | grep -q "TicketLite"
+          BASE_URL: ${{ steps.pulumi.outputs.cloudFrontUrl }}
+        run: pnpm --filter @ticketlite/e2e smoke

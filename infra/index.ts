@@ -10,11 +10,11 @@ import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
 import { apiKey, graphqlUrl } from "./appsync";
 import * as pulumi from "@pulumi/pulumi";
 import { eventsTable, organizersTable } from "./dynamodb";
-import { distribution } from "./cdn";
+import { appUrl, distribution } from "./cdn";
 import { postersBucket, webBucket } from "./storage";
 
 // The public URL of the app. Try: curl "$(pulumi stack output cloudFrontUrl)/api/health"
-export const cloudFrontUrl = distribution.domainName.apply((d) => `https://${d}`);
+export const cloudFrontUrl = appUrl; // the custom domain when enableCustomDomain is on
 export const distributionId = distribution.id;
 
 // API Gateway's own URL (CloudFront forwards /api/* here). Handy for debugging without the CDN.

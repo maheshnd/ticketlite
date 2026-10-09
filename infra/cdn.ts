@@ -6,6 +6,7 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { httpApi } from "./http-api";
 import { postersBucket, webBucket } from "./storage";
+import { customDomain } from "./domain";
 import { webAcl } from "./waf";
 
 // AWS managed policies (fixed IDs, the same in every account):
@@ -29,8 +30,8 @@ const rewrite = new aws.cloudfront.Function("html-rewrite", {
 });
 
 // Step 3: security headers on every response. CONCEPT: security-headers, xss
-// The CSP allows only our own origin, plus AppSync (GraphQL + real-time, M4) and direct poster uploads
-// to S3 (M3). 'unsafe-inline' scripts: Next.js static export inlines small bootstrap scripts.
+// The CSP allows only our own origin, plus AppSync (GraphQL + real-time) and direct poster uploads
+// to S3. 'unsafe-inline' scripts: Next.js static export inlines small bootstrap scripts.
 const csp = pulumi.interpolate`default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.appsync-api.us-east-1.amazonaws.com wss://*.appsync-realtime-api.us-east-1.amazonaws.com https://${postersBucket.bucketRegionalDomainName}; form-action 'self' https://*.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`;
 const securityHeaders = new aws.cloudfront.ResponseHeadersPolicy("security-headers", {
   securityHeadersConfig: {
@@ -137,8 +138,31 @@ export const distribution = new aws.cloudfront.Distribution("cdn", {
   // API (a missing event, a non-admin user) would be swapped for the web app's 404 page. Missing web
   // pages get S3's plain 404 instead (s3:ListBucket below makes S3 say 404, not 403).
   restrictions: { geoRestriction: { restrictionType: "none" } },
-  viewerCertificate: { cloudfrontDefaultCertificate: true }, // *.cloudfront.net; enableCustomDomain adds ACM later
+  // Default: CloudFront's own certificate for *.cloudfront.net. With enableCustomDomain: our ACM certificate,
+  // SNI only (free; dedicated IPs cost $600/month) and TLS 1.2+.
+  aliases: customDomain ? [customDomain.domainName] : undefined,
+  viewerCertificate: customDomain
+    ? {
+        acmCertificateArn: customDomain.certificateArn,
+        sslSupportMethod: "sni-only",
+        minimumProtocolVersion: "TLSv1.2_2021",
+      }
+    : { cloudfrontDefaultCertificate: true },
 });
+
+// With a custom domain: point it at CloudFront. Alias records are free and follow CloudFront's IPs (A + AAAA for IPv6).
+if (customDomain) {
+  for (const type of ["A", "AAAA"]) {
+    new aws.route53.Record(`cdn-alias-${type}`, {
+      zoneId: customDomain.zoneId,
+      name: customDomain.domainName,
+      type,
+      aliases: [
+        { name: distribution.domainName, zoneId: distribution.hostedZoneId, evaluateTargetHealth: false },
+      ],
+    });
+  }
+}
 
 // Step 6: bucket policies: "only this distribution may read". AWS:SourceArn pins it to our distribution,
 // so another CloudFront distribution (even in our account) can't read the buckets.
@@ -163,4 +187,6 @@ allowCloudFront("web", webBucket);
 allowCloudFront("posters", postersBucket);
 
 // The public URL of the app. The web app AND the API are served from it.
-export const appUrl = pulumi.interpolate`https://${distribution.domainName}`;
+export const appUrl = customDomain
+  ? pulumi.output(`https://${customDomain.domainName}`)
+  : pulumi.interpolate`https://${distribution.domainName}`;

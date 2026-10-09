@@ -1,5 +1,5 @@
-// The Lambda functions. M1 has only the api ("Lambdalith": one Fastify app serving every REST route).
-// Later milestones add the small single-job functions (saga steps, workers, indexers) here.
+// The api Lambda ("Lambdalith": one Fastify app serving every REST route) and its live alias.
+// The small single-job functions live with their service area (stepfunctions.ts, events.ts, uploads.ts, ...).
 import * as aws from "@pulumi/aws";
 import { appUrl } from "./cdn";
 import { cognitoDomainUrl, userPool, userPoolClient } from "./cognito";
@@ -30,7 +30,7 @@ export const api = createNodeFunction("api", {
   timeout: 10,
   publish: true,
   reservedConcurrency: flags.reservedConcurrency,
-  // Names and IDs only, never secrets. Secrets come from Secrets Manager at runtime (M5).
+  // Names and IDs only, never secrets. Secrets come from Secrets Manager at runtime.
   environment: {
     EVENTS_TABLE: eventsTable.name,
     ORGANIZERS_TABLE: organizersTable.name,

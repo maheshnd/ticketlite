@@ -30,6 +30,7 @@ The Pulumi program for TicketLite (stack `dev`, region `us-east-1`).
 | `partner-api.ts` | REST API for partners: API key, usage plan (rate + daily quota), X-Ray |
 | `observability.ts` | `alarms` SNS topic, 7 alarms, CloudWatch dashboard |
 | `waf.ts` | (flag `enableWaf`) WAF web ACL for CloudFront |
+| `domain.ts` | (flag `enableCustomDomain`) ACM certificate validated in Route 53; `cdn.ts` adds the alias + DNS records |
 | `sql.ts` | (flag `enableSql`) Aurora Serverless v2 PostgreSQL (scale to zero, Data API), sql-reporter |
 | `uploads.ts` | Posters bucket CORS, poster-processor (async S3 trigger), `poster-failures` queue |
 | `storage.ts` | `web` and `posters` S3 buckets (private) |

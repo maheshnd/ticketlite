@@ -11,7 +11,7 @@ const keys = (hash: string, range?: string) => [
 ];
 
 // Step 1: Events. Access patterns: get by id; published events soonest first; events in a city soonest first.
-// The stream feeds the search indexer (M5): NEW_AND_OLD_IMAGES so deletes and changes can be indexed.
+// The stream feeds the search indexer (flag enableSearch): NEW_AND_OLD_IMAGES so deletes and changes can be indexed.
 export const eventsTable = new aws.dynamodb.Table("events", {
   billingMode: "PAY_PER_REQUEST",
   hashKey: "eventId",
@@ -33,7 +33,7 @@ export const eventsTable = new aws.dynamodb.Table("events", {
 });
 
 // Step 2: Bookings. Access patterns: get by id; my bookings newest first; bookings of an event.
-// The stream (NEW_IMAGE) feeds the optional SQL reporter (M6).
+// The stream (NEW_IMAGE) feeds the optional SQL reporter (flag enableSql).
 export const bookingsTable = new aws.dynamodb.Table("bookings", {
   billingMode: "PAY_PER_REQUEST",
   hashKey: "bookingId",
@@ -69,7 +69,7 @@ export const sessionsTable = new aws.dynamodb.Table("sessions", {
   ttl: { attributeName: "expiresAt", enabled: true },
 });
 
-// Step 5: Organizers, a small seeded list (used to show the GraphQL N+1 problem in M4).
+// Step 5: Organizers, a small seeded list (used to show the GraphQL N+1 problem in AppSync).
 export const organizersTable = new aws.dynamodb.Table("organizers", {
   billingMode: "PAY_PER_REQUEST",
   hashKey: "organizerId",

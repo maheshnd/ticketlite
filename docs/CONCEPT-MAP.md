@@ -4,7 +4,58 @@ Every concept TicketLite demonstrates → the files that show it → how to see 
 Search the code for `CONCEPT: <tag>` to find every place a concept appears. `pnpm check:concepts` (run in CI)
 fails if a tag in the code is missing from this file.
 
-> Filled in milestone by milestone. M7 completes it with all 12 learning topics and the backend concepts.
+## The 12 learning topics
+
+Study order and experiments: [LEARNING-PATH.md](LEARNING-PATH.md). Tags in backticks are rows in the tag table below.
+
+| # | Topic | Key concepts (tags) | Files | How to see it | How to break it |
+|---|---|---|---|---|---|
+| 1 | Serverless fundamentals | `same-origin`, `cdn`, `cost-safety` | `docs/ARCHITECTURE.md`, `SERVICE-MAP.md`, `infra/index.ts` | Request path diagram; Cost Explorer by tag | Run a container 24/7 for a 10-requests-a-day app |
+| 2 | AWS Lambda | `cold-start`, `connection-reuse`, `timeout-chain`, `lambda-versions`, `least-privilege` | `api/src/lambda.ts`, `infra/node-function.ts`, `infra/lambdas.ts`, `functions/*` | `/api/copy-info`; REPORT lines (Init Duration); alias `live` | Create SDK clients inside the handler; 60 s timeout behind API Gateway |
+| 3 | API Gateway | `throttling`, `authentication`, `cors`, `http-vs-rest-api`, `api-keys-usage-plans` | `infra/http-api.ts`, `infra/http-routes.ts`, `infra/partner-api.ts` | 401 from the authorizer without a Lambda log; partner 403/429 | Catch-all route with no authorizer; CORS `*` with credentials |
+| 4 | DynamoDB | `dynamodb-access-patterns`, `conditional-writes`, `transactions`, `optimistic-locking`, `pagination`, `read-consistency`, `ttl`, `streams` | `infra/dynamodb.ts`, `api/src/repositories/*`, `functions/booking-*` | Repository headers list each pattern; two tabs racing for the last seat | Scan in a request path; read-check-write instead of a condition |
+| 5 | GraphQL | `graphql-schema`, `n-plus-one`, `graphql-client` | `graphql/schema.graphql`, `graphql/resolvers/field-event-organizer.ts`, `web/codegen.ts` | Organizer batch logs (`batchSize`) | `maxBatchSize: 0`; query depth 50 without `queryDepthLimit` |
+| 6 | AppSync | `appsync-resolvers`, `pipeline-resolvers`, `appsync-auth-modes`, `real-time`, `websockets`, `sigv4` | `infra/appsync.ts`, `graphql/resolvers/*`, `functions/shared/appsync.ts`, `web/src/lib/appsync-realtime.ts` | Two tabs: live seat counts; `evaluate` script | `publishSeatUpdate` with `@aws_api_key` |
+| 7 | OpenSearch | `full-text-search`, `search-mapping`, `analyzers`, `relevance-scoring`, `aggregations`, `cqrs`, `eventual-consistency` | `infra/search.ts`, `packages/shared/src/search.ts`, `functions/search-indexer`, `api/src/services/search-service.ts`, `docs/SEARCH.md` | `q=jaz`, `q=nights`, city buttons | Dynamic mapping (`city` as text); index drafts |
+| 8 | Event-driven serverless | `event-driven`, `choreography`, `orchestration`, `saga`, `compensation`, `queues`, `dlq`, `fan-out`, `partial-batch-response`, `poison-message`, `async-invocation`, `retries-backoff`, `idempotency` | `infra/events.ts`, `infra/stepfunctions.ts`, `functions/*`, `docs/EVENT-DRIVEN.md` | Step Functions execution graph; DLQ depth | No DLQ; non-idempotent consumer + at-least-once delivery |
+| 9 | Security and observability | `jwt`, `bff`, `token-storage`, `csrf`, `xss`, `rbac`, `secrets-management`, `encryption-at-rest`, `waf`, `structured-logging`, `correlation-id`, `distributed-tracing`, `custom-metrics`, `alarms`, `dashboards` | `docs/SECURITY.md`, `infra/cognito.ts`, `api/src/routes/auth.ts`, `infra/observability.ts`, `functions/shared/powertools.ts` | Cookie flags; Logs Insights by correlation ID; X-Ray map | Tokens in localStorage; log the Authorization header |
+| 10 | Infrastructure + CI/CD | (Pulumi, OIDC, environments, rollback, automated tests) | `infra/*`, `bootstrap/*`, `.github/workflows/*`, `e2e/*`, `docs/CICD-SETUP.md`, ADR 0010 | PR preview comment; deploy smoke tests | Long-lived AWS keys in GitHub; `pulumi up` from a laptop |
+| 11 | Production system design | `caching`, `cache-aside`, `cache-stampede`, `rate-limiting`, `circuit-breaker`, `graceful-degradation`, `null-object`, `http-caching`, `sql-vs-nosql`, `connection-pooling` | `docs/CACHING.md`, `api/src/services/*`, `functions/booking-process-payment`, ADRs 0008/0009 | Redis keys + TTLs; 429 + Retry-After; flags off still work | Cache with no TTL; retry without backoff |
+| 12 | Technical lead topics | ADRs, code review, onboarding | `docs/adr/`, `docs/CODE-REVIEW.md`, `PROGRESS.md`, `CLAUDE.md` | Read any ADR's "Alternatives" | Decide without writing down why |
+
+## Backend concepts
+
+| Concept | Where in TicketLite | How to see it | How to break it |
+|---|---|---|---|
+| REST principles | `api/src/routes/*`: resources (`/events`, `/bookings/:id`), nouns not verbs, stateless requests | OpenAPI at `/api/docs` | `POST /api/getEvent` |
+| HTTP methods + idempotency | GET/PUT safe to repeat; POST made idempotent with `Idempotency-Key` (`api/src/services/idempotency-service.ts`) | Retry a booking with the same key → replayed response | POST without a key + client retry = two bookings |
+| Status codes | 200/201/202/204/304/400/401/403/404/409/422/429/503 (`api/src/errors.ts`, `http-semantics`) | `api/test/*` | Return 200 with `{error}` in the body |
+| ACID vs BASE | DynamoDB transactions are ACID for ≤100 items (`transactions`); the system as a whole is BASE (eventual consistency between stores, `eventual-consistency`) | Seats + booking change atomically; search lags | Assume search is strongly consistent |
+| Indexing | DynamoDB GSIs, OpenSearch inverted index, PostgreSQL B-trees (`indexing`) | Access patterns; `EXPLAIN` | Query a non-key attribute without an index |
+| Sessions vs JWT | `sessions-vs-jwt`, `jwt-logout` | Session demo routes vs `/api/me` | Long-lived JWTs with no revocation |
+| OAuth / OIDC | `oauth-pkce`: authorization code + PKCE against Cognito managed login; OIDC also powers GitHub → AWS (`bootstrap/oidc.ts`) | Login with Cognito; CI's `configure-aws-credentials` | Implicit flow (tokens in the URL) |
+| RBAC vs ABAC | RBAC: `admin` group (`rbac`). ABAC-style: ownership checks (`booking.userId === sub`), the user id in AppSync from `ctx.identity` | 403 for non-admins; 404 for others' bookings | Trust a role sent by the client |
+| Request lifecycle | `api/src/app.ts`: genReqId → onRequest (correlation id) → validation → preHandler (auth) → handler → serializer → error handler | Fastify logs per request | Do auth inside handlers inconsistently |
+| Caching patterns | `cache-aside`, `cache-stampede`, `http-caching`, `cdn` (`docs/CACHING.md`) | Redis keys, ETag 304, `x-cache` | Cache personal data at the CDN |
+| Repository / DI / middleware / factory patterns | Repository: `api/src/repositories`. "DI" without a framework: modules + `vi.mock` in tests. Middleware: Fastify hooks/preHandlers. Factory: `createNodeFunction`, `createLambdaRole`, `createDb` | Tests replace modules, not containers | A DI container for a 20-file service |
+| SQL / NoSQL injection | `sql-injection`, `input-validation`, `docs/SECURITY.md` | Bound parameters; expression placeholders | String-built SQL or expressions |
+| CSRF | `csrf` | refresh without `x-csrf` → 403 | `SameSite=None` + no header check |
+| Rate limiting algorithms | Token bucket (API Gateway, `throttling`), sliding window log (Redis, `rate-limiting`), fixed window, leaky bucket (docs/CACHING.md) | 429 + Retry-After | Fixed window: 2× bursts at the boundary |
+| Password hashing | Delegated to Cognito (salted, slow hashing, SRP; we never store passwords) | `docs/SECURITY.md#passwords` | Store SHA-256(password) yourself |
+| Vertical vs horizontal scaling | Lambda scales out per request; Aurora scales up (ACUs); OpenSearch scales out (nodes/shards) | Lambda ConcurrentExecutions metric | Reserved concurrency 1 on the api |
+| Replication / sharding / partitioning | DynamoDB partitions by partition key (hot-partition note on `byStatus`), OpenSearch shards + replicas, Aurora replicas | `infra/dynamodb.ts` comments, `docs/SEARCH.md` | One partition key for all hot writes at scale |
+| Message queues and DLQs | `queues`, `dlq`, `docs/EVENT-DRIVEN.md` | DLQ redrive | No visibility timeout headroom |
+| Monolith vs microservices | Lambdalith API + single-purpose functions (ADR 0001) | `api/` vs `functions/` | A Lambda per route with copy-pasted code |
+| Distributed tracing | `distributed-tracing`, `correlation-id` | X-Ray trace map | Drop the correlation id at the queue boundary |
+| CAP theorem | DynamoDB/OpenSearch choose availability + partition tolerance with eventual consistency by default; strongly consistent reads trade latency for C | `read-consistency` | Assume a GSI read sees your write |
+| N+1 | `n-plus-one` | Organizer batch logs | `maxBatchSize: 0` |
+| Connection pooling | `connection-pooling`, `connection-reuse` | Data API, module-level SDK clients | New client per request |
+| Eventual consistency / saga | `eventual-consistency`, `saga`, `compensation` | Booking states; search lag | Assume all steps commit together |
+| Event sourcing vs CQRS | CQRS: separate read models (OpenSearch, Aurora) fed by streams. Not event sourcing: DynamoDB stores current state, not the event log (EventBridge archive + replay would be a step toward it) | `cqrs` | Rebuild state from logs that were never stored |
+| Normalization vs denormalization | `normalization` (Aurora) vs `eventName` copied into bookings (DynamoDB) | Rename an event | Normalize DynamoDB and JOIN in code |
+| Safe migrations | `safe-migrations` | `packages/sql/README.md` | Rename a column in one deploy |
+| Graceful shutdown (and Lambda) | Lambda has no long-lived process to drain: in-flight work ends with the invocation, the environment is frozen, and SIGTERM arrives only with extensions. Containers would close servers and finish requests on SIGTERM. Local: `app.close()` | `api/src/local.ts` | Rely on `process.on("exit")` to flush data in Lambda |
+| Structured logging | `structured-logging` | Logs Insights queries in RUNBOOK | Log free text with string concatenation |
 
 ## `CONCEPT:` tags
 
@@ -34,7 +85,7 @@ fails if a tag in the code is missing from this file.
 | `compensation` | `functions/booking-release-seat/handler.ts`, `infra/booking-state-machine.asl.json` | Book an event priced 10.13: payment is declined, seats come back, booking ends FAILED | Remove the `Catch` on ProcessPayment: declined bookings keep their seats forever |
 | `conditional-writes` | `functions/booking-reserve-seat/handler.ts`, `api/src/repositories/*` | `ConditionExpression: availableSeats >= :seats` — DynamoDB refuses the write instead of going negative | Read seats, check in code, then write: two users can both take the last seat |
 | `connection-pooling` | `infra/sql.ts`, `packages/sql/src/client.ts`, `docs/adr/0008-sql-reporting.md` | The Data API needs no connections: 100 concurrent Lambdas don't open 100 DB connections | Connect with `pg` directly from Lambda: each copy holds a connection and a small cluster runs out |
-| `connection-reuse` | `api/src/lambda.ts` | AWS SDK clients are created at module level (M2) and reused by warm invocations | Create a client per request: extra TLS handshakes, slower p99 |
+| `connection-reuse` | `api/src/lambda.ts` | AWS SDK clients are created at module level (`api/src/lib/*`) and reused by warm invocations | Create a client per request: extra TLS handshakes, slower p99 |
 | `correlation-id` | `api/src/plugins/correlation-id.ts` | `curl -H 'x-correlation-id: abc' .../api/health -i` → same header back; search logs for `abc` | Remove the header validation: a caller can inject newlines into logs |
 | `cors` | `api/src/plugins/cors.ts`, `infra/http-api.ts` | Local only: preflight from `http://localhost:3001` gets `access-control-allow-origin` | Set `origin: "*"` with `credentials: true`: browsers refuse it, and it would be unsafe anyway |
 | `cost-safety` | `infra/config.ts`, `infra/node-function.ts`, `infra/Pulumi.dev.yaml` | Every paid service is behind a flag that defaults to `false`; log groups keep 7 days | Let Lambda create its own log group: logs are kept (and billed) forever |
@@ -60,7 +111,7 @@ fails if a tag in the code is missing from this file.
 | `http-caching` | `api/src/routes/events.ts` | `curl -i .../api/events/evt-003` → `etag`; send it back as `If-None-Match` → `304` with no body | Use `max-age=3600` on the detail: users see stale seat counts for an hour |
 | `http-semantics` | `api/src/routes/bookings.ts`, `api/src/routes/admin-events.ts` | POST /api/bookings → 202 + Location; POST admin event → 201 + Location; stale edit → 409; reused key → 422 | Return 200 for everything: clients can't tell "done" from "accepted, still running" |
 | `http-vs-rest-api` | `infra/http-api.ts` (HTTP API) vs `infra/partner-api.ts` (REST API) | HTTP: cheaper, JWT authorizers, no X-Ray. REST: API keys, usage plans, X-Ray, request validation, caching | Try to add a usage plan to the HTTP API: it doesn't exist there |
-| `idempotency` | `infra/dynamodb.ts` (IdempotencyKeys table) | Used by `POST /api/bookings` in M3 | — |
+| `idempotency` | `api/src/services/idempotency-service.ts`, `infra/dynamodb.ts` (IdempotencyKeys), saga steps, `functions/email-worker` | Retry `POST /api/bookings` with the same `Idempotency-Key`: same 202 body + `idempotent-replayed: true`, one saga | Generate a new key on every retry: a network blip creates two bookings |
 | `indexing` | `packages/sql/src/schema.ts` (B-tree indexes), `infra/dynamodb.ts` (GSIs) | `EXPLAIN` the bookings-per-day query: it uses `bookings_created_at_idx` | Drop the index: the report scans every booking row |
 | `input-validation` | `functions/poster-processor/image-type.ts`, every Zod schema | Upload a .txt renamed to .png: poster-processor deletes it | Trust the browser's Content-Type: any file type gets attached to an event |
 | `jwt` | `api/src/lib/jwt.ts`, `infra/http-routes.ts` | Paste an access token into jwt.io: `sub`, `cognito:groups`, `client_id`, `exp` (15 min) | Skip signature verification: anyone can forge `cognito:groups: ["admin"]` |
@@ -71,7 +122,7 @@ fails if a tag in the code is missing from this file.
 | `normalization` | `packages/sql/src/schema.ts` vs `packages/shared/src/booking.ts` (`eventName` copied) | SQL stores the event name once and JOINs; DynamoDB copies it into each booking for one-read pages | Rename an event: the SQL report shows the new name; old DynamoDB bookings keep the old one |
 | `null-object` | `api/src/lib/cache.ts` (`noopCache`) | With `enableCache` off, every read is a miss and nothing breaks | Return `null` from `getCache()`: every caller needs an `if` |
 | `oauth-pkce` | `api/src/routes/oauth.ts`, `api/src/services/pkce.ts`, `api/src/lib/cognito-oauth.ts`, `infra/cognito.ts` | Login page → "Log in with Cognito": redirect carries `code_challenge`; callback swaps `code` + verifier | Send the verifier in the authorize URL: a stolen code can be redeemed by anyone |
-| `optimistic-locking` | `packages/shared/src/event.ts` | Added in M3 (admin edits) | — |
+| `optimistic-locking` | `packages/shared/src/event.ts`, `api/src/repositories/events-repository.ts`, `graphql/resolvers/fn-update-event.ts`, `web/src/features/admin/EventForm.tsx` | Edit the same event in two tabs, save both: the second gets 409 and a "Reload" button | Drop the `version` condition: the last save silently overwrites the first |
 | `optimistic-update` | `web/src/features/admin/admin-queries.ts` (`useToggleStatus`) | Click a status: it flips instantly, before the network call returns | Skip `onError` rollback: after a 409 the UI shows a status the server never saved |
 | `orchestration` | `infra/stepfunctions.ts`, `infra/booking-state-machine.md`, `docs/adr/0004-saga-orchestration.md` | Step Functions console → the execution graph shows every step, input and output | Chain the Lambdas by calling each other directly: no central view, retries and timeouts become your problem |
 | `origin-access-control` | `infra/cdn.ts` | `curl https://<bucket>.s3.amazonaws.com/index.html` → 403; via CloudFront → 200 | Remove the `AWS:SourceArn` condition: any distribution could read the bucket |
@@ -82,10 +133,10 @@ fails if a tag in the code is missing from this file.
 | `polling` | `web/src/features/bookings/bookings-queries.ts` (`refetchInterval`) | Book: the status page refetches every second, then stops at CONFIRMED/FAILED | Return a constant `refetchInterval`: the page polls forever |
 | `prefetching` | `web/src/features/events/events-queries.ts`, `EventCard.tsx` | DevTools Network: hovering an event fetches `/api/events/<id>` before the click | Prefetch every card on render: dozens of requests nobody needed |
 | `presigned-urls` | `api/src/lib/s3.ts`, `web/src/features/admin/admin-queries.ts` | Network tab: the poster goes straight to `*.s3.amazonaws.com`, not through the API | Remove `content-length-range` from the conditions: anyone with the form can upload 5 GB |
-| `query-key-factory` | `web/src/lib/query-keys.ts` | `eventKeys.lists()` invalidates every list at once (M3 admin edits) | Hand-write keys like `["event", id]` and `["events", id]`: invalidation silently misses one |
+| `query-key-factory` | `web/src/lib/query-keys.ts` | `eventKeys.lists()` invalidates every list at once after admin edits | Hand-write keys like `["event", id]` and `["events", id]`: invalidation silently misses one |
 | `queues` | `infra/events.ts`, `functions/email-worker` | Stop the worker: messages wait in `email-queue`; start it: they drain | Call SES synchronously from the saga: SES throttling fails bookings |
 | `rate-limiting` | `api/src/services/rate-limit-service.ts`, `infra/http-routes.ts` | 6 bookings in a minute (Redis on): the 6th gets 429 + Retry-After | Rate limit by IP behind CloudFront without `X-Forwarded-For`: everyone shares one limit |
-| `rbac` | `api/src/plugins/auth-context.ts`, `infra/http-routes.ts`, `infra/cognito.ts` (admin group) | A user outside the `admin` group gets 403 on admin routes (M3) | Read the role from a request body field instead of the signed token |
+| `rbac` | `api/src/plugins/auth-context.ts`, `infra/http-routes.ts`, `infra/cognito.ts` (admin group) | A user outside the `admin` group gets 403 on admin routes | Read the role from a request body field instead of the signed token |
 | `react-query` | `web/src/lib/query-client.ts`, `web/src/features/events/events-queries.ts`, `web/eslint.config.mjs` | Navigate list → detail → back: the list shows instantly from cache (staleTime 30s) | Retry 4xx errors: a 404 is retried three times before the user sees it |
 | `read-consistency` | `api/src/repositories/events-repository.ts`, `sessions-repository.ts` | `getEventById(id, { consistent: true })` vs the default; sessions always read consistently | Read sessions eventually-consistently: right after logout the old session may still work for a moment |
 | `real-time` | `graphql/schema.graphql` (`@aws_subscribe`), `functions/shared/appsync.ts`, `web/src/features/events/live-seats.ts` | Open an event in two tabs, book in one: the other tab's seat count changes | Subscribe without `eventId`: every client receives every event's updates |
@@ -107,7 +158,8 @@ fails if a tag in the code is missing from this file.
 | `streams` | `infra/search.ts`, `functions/search-indexer` | Edit an event: the stream record (old + new image) reaches the indexer | Use `KEYS_ONLY`: the indexer would have to read the table again for every change |
 | `structured-logging` | `api/src/app.ts` | CloudWatch Logs Insights: `fields correlationId, res.statusCode \| filter res.statusCode >= 500` | Log with string concatenation: fields can't be queried |
 | `throttling` | `infra/http-api.ts` | Fire > 40 requests at once: API Gateway answers 429 before Lambda runs | Remove `defaultRouteSettings`: one script can run up the bill |
-| `timeout-chain` | `infra/lambdas.ts`, `infra/node-function.ts`, `infra/http-api.ts` | API Gateway 29s > Lambda 10s > SDK calls (M2) | Make the Lambda timeout 60s: API Gateway gives up first and the user sees a 503 while Lambda keeps running (and billing) |
+| `timeout-chain` | `infra/lambdas.ts`, `infra/node-function.ts`, `infra/http-api.ts` | API Gateway 29s > Lambda 10s > SDK calls (1–3s, `api/src/lib/*`) | Make the Lambda timeout 60s: API Gateway gives up first and the user sees a 503 while Lambda keeps running (and billing) |
+| `tls` | `infra/domain.ts`, `infra/cdn.ts` (`minimumProtocolVersion`), `infra/search.ts` (`Policy-Min-TLS-1-2`) | With `enableCustomDomain`: the browser shows the ACM certificate for your domain; TLS 1.2+ only | Allow TLS 1.0 on the distribution: old, broken ciphers become negotiable |
 | `token-storage` | `web/src/lib/token-store.ts`, `api/src/routes/auth.ts`, `packages/shared/src/auth.ts` | Reload the page: the access token is gone from memory and restored via `/api/auth/refresh` | Put the token in localStorage: any injected script can read it |
 | `transactions` | `functions/booking-reserve-seat/handler.ts`, `booking-release-seat/handler.ts` | Seats and booking change together or not at all (`TransactWriteItems`) | Use two separate UpdateItems: a crash between them loses seats |
 | `ttl` | `infra/dynamodb.ts`, `api/src/repositories/sessions-repository.ts`, `api/src/services/session-service.ts` | Sessions get `expiresAt` (epoch seconds); DynamoDB deletes them for free, eventually | Rely on TTL alone: expired sessions can still be read for hours |

@@ -15,6 +15,9 @@ export function NavBar() {
       <Link href="/search" className="text-slate-700 underline">
         Search
       </Link>
+      <Link href="/learn" className="text-slate-700 underline">
+        Learn
+      </Link>
       <div className="ml-auto flex items-center gap-4">
         {isAdmin && (
           <Link href="/admin/events" className="text-slate-700 underline">

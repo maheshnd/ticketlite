@@ -45,7 +45,7 @@ external provider), notifications. A **saga** runs them as a sequence of local s
 | `MarkFailed` | **DynamoDB direct** | Booking → FAILED. No Lambda: Step Functions calls DynamoDB `UpdateItem` itself | 3× | — |
 | `PublishSoldOut` | **EventBridge direct** | Publishes `BookingFailed` (with the reason) to the bus, like ReleaseSeat does on the payment path | 3× | — |
 | `BookingConfirmed` / `BookingFailed` | Succeed | Both are *handled* outcomes, so the execution succeeds and no alarm fires | — | — |
-| `ConfirmFailed` / `CompensationFailed` | Fail | Unhandled problems: the execution fails and the M6 alarm fires | — | — |
+| `ConfirmFailed` / `CompensationFailed` | Fail | Unhandled problems: the execution fails and the `booking-saga-failed` alarm fires | — | — |
 
 ## Retry vs Catch
 

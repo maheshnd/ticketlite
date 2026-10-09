@@ -1,4 +1,4 @@
-// Fake events used by the MSW handlers (tests now, the Playwright mock mode in M7).
+// Fake events used by the MSW handlers (component tests and the Playwright mock mode).
 import type { Event } from "@ticketlite/shared";
 
 const base = {

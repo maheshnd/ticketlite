@@ -13,7 +13,7 @@ Build progress for [BUILD-SPEC.md](BUILD-SPEC.md). A new session continues from 
 | M4 | AppSync, N+1 batch resolver, subscriptions, live seat count | ✅ done — `pulumi preview`: 125 to create; all 9 resolvers pass `aws appsync evaluate-code`; 93 tests |
 | M5 | EventBridge/SQS/SNS, email worker, search (flag), Redis cache + rate limit (flag), CloudFront caching | ✅ done — `pulumi preview`: 147 to create (157 with search + cache on); search, analyzer and cache checked against local OpenSearch 3.7 + Redis; 109 tests |
 | M6 | Powertools, alarms, dashboard, WAF (flag), partner API, optional SQL (flag) | ✅ done — `pulumi preview`: 167 to create (192 with every flag on); 116 tests |
-| M7 | Playwright + axe, all docs, final pass | todo |
+| M7 | Playwright + axe, all docs, final pass | ✅ done — `pulumi preview`: 167 to create (172 with a custom domain); 116 unit/component tests + 8 E2E journeys with axe (0 violations) |
 
 ## Decisions and deviations from the spec
 
@@ -68,6 +68,12 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 47. **Aurora PostgreSQL 17.11** (18.6 is newest). Both support scale to zero (verified with `describe-db-engine-versions`); 17 chosen because Data API support for 18 isn't confirmable via API. Verify on first enable.
 48. **Optional SQL lives in `packages/sql`** (schema, migrations, reports), shared by `functions/sql-reporter` and the API. Migrations run on the reporter's cold start; `/api/admin/reports` answers 404 when the flag is off and 503 + Retry-After while the cluster resumes.
 49. **Encryption keys**: service defaults, no customer-managed KMS keys (ADR 0007).
+50. **E2E runs against a "mock mode" static build** (`NEXT_PUBLIC_MOCK=1`): MSW in the browser serves the same handlers as the component tests (REST, AppSync GraphQL and the AppSync WebSocket). The MSW worker is loaded with `next/dynamic` + `ssr: false` (`msw/browser` maps to null for Node) and only copied into the mock build. `e2e/serve.mjs` applies the CloudFront rewrite, so routing is tested too.
+51. **Post-deploy smoke tests are a separate read-only Playwright config** (`e2e/playwright.smoke.config.ts`): health, security headers, home page, axe.
+52. **The e2e package's script is `e2e`, not `test`**, so `pnpm test` stays unit/component only. Coverage: `pnpm test:coverage` in CI, uploaded as an artifact, no gate.
+53. **`enableCustomDomain` implemented** (`infra/domain.ts`): DNS-validated ACM certificate + CloudFront alias + Route 53 A/AAAA records; needs `customDomain` and `hostedZoneId` config.
+54. **`web` declares `vitest` itself**: pnpm "peer variants" otherwise attach jest-dom's matcher types to a different vitest copy.
+55. **ADRs 0001, 0003, 0009, 0010 added**; ADR index in `docs/adr/README.md`. Deep-dive docs: EVENT-DRIVEN, SEARCH, CACHING.
 
 ## Open questions
 
@@ -75,5 +81,7 @@ Recorded so the owner can check them. The ADRs in `docs/adr/` explain the bigger
 
 ## Next steps
 
-- M7: Playwright E2E (visitor, user, admin journeys in MSW mock mode) + axe on main pages, in ci.yml and as the post-deploy smoke test; `/learn` page; remaining docs (README, ARCHITECTURE, CONCEPT-MAP 12 topics + backend concepts, LEARNING-PATH, ADRs 0001/0003, COSTS, CODE-REVIEW, per-folder READMEs); coverage report in CI; final consistency pass and the §21 report.
+All milestones are done. The owner's first-deploy steps are in docs/CICD-SETUP.md (bootstrap, GitHub secret/variables,
+first deploy, confirm the SES + 2 SNS emails, seed, set the payment secret, add yourself to `admin`).
+
 - Later optimization (not in spec): the api bundle is ~2 MB minified (AWS SDK + Swagger UI). Check with an esbuild metafile if cold starts matter.

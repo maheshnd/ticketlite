@@ -4,7 +4,7 @@
 // CONCEPT: circuit-breaker
 //
 // Trade-off: the state lives in this Lambda copy's memory. Each concurrent copy has its own breaker, and a
-// cold start resets it. Sharing state across copies needs an external store (e.g. Redis, M5): more
+// cold start resets it. Sharing state across copies needs an external store (e.g. Redis): more
 // accurate, but one more network call and one more thing that can fail.
 export class CircuitOpenError extends Error {
   name = "CircuitOpen";

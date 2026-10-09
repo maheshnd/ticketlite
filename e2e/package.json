@@ -1,0 +1,16 @@
+{
+  "name": "@ticketlite/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:mock": "NEXT_PUBLIC_MOCK=1 NEXT_PUBLIC_APPSYNC_URL=https://mock.appsync-api.us-east-1.amazonaws.com/graphql NEXT_PUBLIC_APPSYNC_API_KEY=mock-key pnpm --filter @ticketlite/web build && node copy-msw-worker.mjs",
+    "e2e": "playwright test",
+    "smoke": "playwright test --config playwright.smoke.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0",
+    "msw": "^3.0.2"
+  }
+}

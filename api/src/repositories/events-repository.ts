@@ -31,7 +31,7 @@ export type Page<T> = { items: T[]; nextCursor: string | null };
 // Pattern 1. `consistent` chooses the read type. CONCEPT: read-consistency
 //   - eventually consistent (default): half the cost; may miss a write from the last ~second.
 //     Fine for a public event page.
-//   - strongly consistent: always sees the latest write. Used by the admin edit form (M3), which must
+//   - strongly consistent: always sees the latest write. Used by the admin edit form, which must
 //     load the current `version` before saving. Only the table supports it; GSIs are always eventual.
 export async function getEventById(eventId: string, { consistent = false } = {}): Promise<Event | undefined> {
   const result = await ddb.send(new GetCommand({ TableName, Key: { eventId }, ConsistentRead: consistent }));

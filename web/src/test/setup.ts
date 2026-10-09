@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest"; // adds matchers like toBeInTheDocume
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { setAccessToken } from "../lib/token-store";
+import { resetMockState } from "../mocks/handlers";
 import { server } from "../mocks/server";
 
 // Step 1: start the fake API. "error" makes any request WITHOUT a handler fail the test loudly.
@@ -13,6 +14,7 @@ afterAll(() => server.close());
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  resetMockState();
   setAccessToken(null);
 });
 

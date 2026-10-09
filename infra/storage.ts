@@ -20,7 +20,7 @@ function blockPublicAccess(name: string, bucket: aws.s3.Bucket) {
 export const webBucket = new aws.s3.Bucket("web", { forceDestroy: true });
 blockPublicAccess("web", webBucket);
 
-// Step 2: the posters bucket holds event posters uploaded by admins (presigned POST, M3).
+// Step 2: the posters bucket holds event posters uploaded by admins (presigned POST).
 // forceDestroy is fine for a learning stack; a real one would keep uploads (and enable versioning).
 export const postersBucket = new aws.s3.Bucket("posters", { forceDestroy: true });
 blockPublicAccess("posters", postersBucket);

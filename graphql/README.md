@@ -49,6 +49,6 @@ to `0` in `infra/appsync.ts` and the 20 invocations come back.
 - **Introspection:** enabled in dev for tooling; a prod stack would set `introspectionConfig: "DISABLED"` (it hides
   the schema map from attackers, though it is not a security boundary by itself).
 - **The API key is public** (it ships in the web app). It only grants the `@aws_api_key` fields. Protect it with
-  WAF rate rules (M6) and rotate it before it expires (max 365 days).
+  WAF rate rules (`enableWaf`) and rotate it before it expires (max 365 days).
 - **Caching:** AppSync server-side caching runs on a dedicated, always-on instance billed per hour, so it is off.
   Alternatives used here: React Query (client), CloudFront (REST), and per-resolver logic.

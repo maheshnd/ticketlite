@@ -1,5 +1,6 @@
 # Pull request checks. Nothing here can change AWS: the preview uses a READ-ONLY role.
-#   checks  -> format, lint, typecheck, unit + component tests, build everything
+#   checks  -> format, lint, typecheck, unit + component tests (with coverage), build everything
+#   e2e     -> Playwright journeys + axe accessibility checks against the mock-mode static build
 #   preview -> `pulumi preview`, posted as a PR comment
 name: ci
 
@@ -43,13 +44,45 @@ jobs:
         run: pnpm lint && pnpm check:concepts
       - name: Typecheck
         run: pnpm typecheck
-      - name: Unit and component tests
-        run: pnpm test
+      - name: Unit and component tests (with coverage)
+        run: pnpm test:coverage
+      # A coverage report to read, not a gate: chasing a percentage leads to tests that assert nothing.
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: "**/coverage/"
+          retention-days: 7
       - name: Build (Lambda bundles + static web export)
         run: pnpm build
 
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Only Chromium, with the OS libraries it needs. ~1 minute; caching browsers saves little.
+      - run: pnpm --filter @ticketlite/e2e exec playwright install --with-deps chromium
+      # The static site in MOCK mode: MSW answers every API call inside the browser, so no AWS is needed.
+      - run: pnpm e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
   preview:
-    needs: checks
+    needs: [checks, e2e]
     runs-on: ubuntu-latest
     permissions:
       id-token: write # lets the job request a GitHub OIDC token to log in to AWS

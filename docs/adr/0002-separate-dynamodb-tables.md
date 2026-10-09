@@ -32,7 +32,7 @@ patterns need. Each repository file lists its access patterns at the top.
 
 - The code is easy to follow, and each table's IAM policy can be tight.
 - "Event + its bookings" needs two requests (one per table). At our scale that costs nothing extra.
-- `TransactWriteItems` still works across tables (M3 reserves a seat and updates a booking atomically).
+- `TransactWriteItems` still works across tables (ReserveSeat reserves a seat and updates a booking atomically).
 
 **When would a team choose single-table?** When a few hot, well-known access patterns must be served with
 the lowest latency and cost at very large scale (e.g. an order with its line items, read millions of times a

@@ -54,7 +54,7 @@ export const handler = async (input: SagaInput): Promise<SagaInput> => {
     correlationId,
   });
 
-  // Live update for everyone watching this event (AppSync subscription, M4).
+  // Live update for everyone watching this event (AppSync subscription).
   const availableSeats = await getAvailableSeats(input.eventId);
   if (availableSeats !== undefined) await publishSeatUpdate(input.eventId, availableSeats);
   return input;

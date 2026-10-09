@@ -1,4 +1,4 @@
-// MSW for Node (Vitest). The browser version (a service worker) is added for the E2E mock mode in M7.
+// MSW for Node (Vitest). The browser version (a service worker) is mocks/browser.ts.
 import { setupServer } from "msw/node";
 import { handlers } from "./handlers";
 

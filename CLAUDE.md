@@ -14,7 +14,8 @@ The full spec is `BUILD-SPEC.md`; build progress (and where to resume) is `PROGR
 - `e2e/` — Playwright tests
 - `infra/` — Pulumi TypeScript project, stack `dev`, region `us-east-1`. No `aws:profile` in config: credentials come from the environment.
 - `bootstrap/` — separate Pulumi project (stack `dev`). Creates the GitHub OIDC provider and the two CI roles. The owner runs it once.
-- `scripts/` — one-off scripts run with tsx (seed data, local tables)
+- `packages/sql/` — optional SQL reporting (Drizzle schema, migrations, reports)
+- `scripts/` — one-off scripts run with tsx (seed data, local tables, local search index)
 - `.github/workflows/` — `ci.yml` (PR checks + read-only preview), `deploy.yml` (deploy on main), `destroy.yml` (manual teardown)
 - `docs/` — setup guides, concept map, ADRs, runbook
 - `notes/` — study notes per phase
@@ -22,7 +23,7 @@ The full spec is `BUILD-SPEC.md`; build progress (and where to resume) is `PROGR
 
 The repo is **one pnpm workspace** (`pnpm-workspace.yaml`, one root `pnpm-lock.yaml`). Run `pnpm install` at the root.
 Package names are `@ticketlite/<folder>`; run one package's script with `pnpm --filter @ticketlite/api <script>`.
-Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm format`, `pnpm check:concepts`.
+Root scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:coverage`, `pnpm e2e`, `pnpm build`, `pnpm format`, `pnpm check:concepts`, `pnpm db:local`.
 Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm check:concepts`, run in CI).
 
 ## Rules
@@ -38,7 +39,8 @@ Every `// CONCEPT: <tag>` in code must be listed in `docs/CONCEPT-MAP.md` (`pnpm
   - App packages use `"module": "preserve"` + `"moduleResolution": "bundler"` (`tsconfig.base.json`): tsc never emits JS, so imports have no `.js` suffix.
   - Prettier formats code only. Markdown is hand-formatted (`.prettierignore`).
   - AppSync resolvers: `@aws-appsync/eslint-plugin` doesn't support ESLint 10 / TS 6. Check resolvers with `AWS_PROFILE=ticketlite pnpm --filter @ticketlite/graphql evaluate` (read-only `aws appsync evaluate-code`). APPSYNC_JS has no try/catch, throw, `++` or classes.
-  - MSW 3: GraphQL mocks come from `msw/graphql` via `graphql.link(url)`; the option is `onUnhandledFrame` (not `onUnhandledRequest`).
+  - MSW 3: GraphQL mocks come from `msw/graphql` via `graphql.link(url)`; the option is `onUnhandledFrame` (not `onUnhandledRequest`). `msw/browser` maps to null for Node, so the browser worker is loaded with `next/dynamic` + `ssr: false` (`web/src/components/MockGate.tsx`).
+  - pnpm creates "peer variants" of vitest; a package using `@testing-library/jest-dom` must declare `vitest` itself (see `web/package.json`), or the matcher types attach to another copy.
 - **Infra structure.** One Pulumi file per service area (`infra/iam.ts`, `infra/lambdas.ts`, `infra/http-api.ts`, …). `index.ts` only wires them together and exports outputs.
 - **Cost safety.** CloudWatch log groups get 7-day retention. API throttling limits stay low. IAM is least-privilege.
 - **Deploys happen ONLY through GitHub Actions** on merge to `main`.

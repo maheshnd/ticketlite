@@ -1,9 +1,20 @@
-// MSW request handlers: a fake TicketLite API that runs inside the test process (or, in M7, inside the
+// MSW request handlers: a fake TicketLite API that runs inside the test process (or, in the E2E mock mode, inside the
 // browser via a service worker). Components make real fetch calls; MSW answers them. CONCEPT: api-mocking
 import { HttpResponse, http, ws } from "msw";
 import { graphql } from "msw/graphql"; // MSW 3 moved GraphQL mocking to its own entry point
-import type { Booking, Event } from "@ticketlite/shared";
+import type { Booking, CreateEventInput, Event } from "@ticketlite/shared";
 import { mockEvents } from "./data";
+
+// Mock session state: "logged in" after a successful login, until logout (stands in for the refresh cookie).
+// resetMockState() runs after every unit test so tests can't affect each other.
+let loggedIn = false;
+const createdEvents: Event[] = [];
+const pristineEvents = structuredClone(mockEvents); // admin edits change mockEvents; reset restores them
+export function resetMockState() {
+  loggedIn = false;
+  createdEvents.length = 0;
+  mockEvents.splice(0, mockEvents.length, ...structuredClone(pristineEvents));
+}
 
 // A booking that is PENDING the first time it is read and CONFIRMED after that, like a fast saga.
 const bookingReads = new Map<string, number>();
@@ -104,26 +115,39 @@ export const handlers = [
   // One known user: test@ticketlite.dev / Tickets2026x
   http.post("*/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string };
-    return body.password === "Tickets2026x"
-      ? HttpResponse.json({ accessToken: "mock-access-token", expiresIn: 900 })
-      : problem(401, "Unauthorized", "Wrong email or password, or the session has ended. Log in again.");
+    if (body.password !== "Tickets2026x") {
+      return problem(401, "Unauthorized", "Wrong email or password, or the session has ended. Log in again.");
+    }
+    loggedIn = true;
+    return HttpResponse.json({ accessToken: "mock-access-token", expiresIn: 900 });
   }),
 
-  // No refresh cookie in tests: the user starts logged out.
-  http.post("*/api/auth/refresh", () => problem(401, "Unauthorized", "Not logged in.")),
-  http.post("*/api/auth/logout", () => new HttpResponse(null, { status: 204 })),
+  // The user starts logged out (no refresh cookie); after a login, refresh works like the real cookie.
+  http.post("*/api/auth/refresh", () =>
+    loggedIn
+      ? HttpResponse.json({ accessToken: "mock-access-token", expiresIn: 900 })
+      : problem(401, "Unauthorized", "Not logged in."),
+  ),
+  http.post("*/api/auth/logout", () => {
+    loggedIn = false;
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.post("*/api/auth/signup", () => HttpResponse.json({ confirmed: false }, { status: 201 })),
+  http.post("*/api/auth/confirm", () => new HttpResponse(null, { status: 204 })),
+  http.post("*/api/auth/forgot", () => new HttpResponse(null, { status: 202 })),
+  http.post("*/api/auth/reset", () => new HttpResponse(null, { status: 204 })),
 
   // The logged-in mock user is an admin, so the admin pages can be exercised too.
   http.get("*/api/me", () =>
     HttpResponse.json({ userId: "user-1", email: "test@ticketlite.dev", groups: ["admin"] }),
   ),
 
-  http.post("*/api/bookings", ({ request }) =>
-    request.headers.get("idempotency-key")
-      ? HttpResponse.json({ bookingId: "bk-1", status: "PENDING" }, { status: 202 })
-      : problem(400, "Bad Request", "Send an Idempotency-Key header"),
-  ),
+  http.post("*/api/bookings", ({ request }) => {
+    if (!request.headers.get("idempotency-key"))
+      return problem(400, "Bad Request", "Send an Idempotency-Key header");
+    pushSeatUpdate("evt-001", 38); // like the saga: everyone watching the event sees the new count
+    return HttpResponse.json({ bookingId: "bk-1", status: "PENDING" }, { status: 202 });
+  }),
   http.get("*/api/bookings/:id", ({ params }) => {
     const id = String(params.id);
     const reads = (bookingReads.get(id) ?? 0) + 1;
@@ -138,10 +162,30 @@ export const handlers = [
       bookingsPerDay: [{ day: "2026-10-08", bookings: 3 }],
     }),
   ),
-  http.get("*/api/admin/events", () => HttpResponse.json({ items: mockEvents.slice(0, 3) })),
+  http.get("*/api/admin/events", () =>
+    HttpResponse.json({ items: [...mockEvents.slice(0, 3), ...createdEvents] }),
+  ),
+  http.post("*/api/admin/events", async ({ request }) => {
+    const input = (await request.json()) as CreateEventInput;
+    const now = new Date().toISOString();
+    const event: Event = {
+      ...input,
+      eventId: `evt-new-${createdEvents.length + 1}`,
+      availableSeats: input.totalSeats,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    createdEvents.push(event);
+    return HttpResponse.json(event, { status: 201 });
+  }),
+  // Saves the change (like the real API), so a refetch after an optimistic update shows the same state.
   http.put("*/api/admin/events/:id", async ({ params, request }) => {
     const body = (await request.json()) as Partial<Event> & { version: number };
-    const event = mockEvents.find((e) => e.eventId === params.id)!;
-    return HttpResponse.json({ ...event, ...body, version: body.version + 1 });
+    const list = createdEvents.some((e) => e.eventId === params.id) ? createdEvents : mockEvents;
+    const index = list.findIndex((e) => e.eventId === params.id);
+    if (index < 0) return problem(404, "Not Found", `Event ${params.id} does not exist.`);
+    list[index] = { ...list[index]!, ...body, version: body.version + 1 };
+    return HttpResponse.json(list[index]);
   }),
 ];

@@ -105,6 +105,18 @@ The PR gets a comment with the `pulumi preview` output. Merging it runs the depl
 - Locally you may only run `AWS_PROFILE=ticketlite pulumi preview` (run `pnpm build` at the repo root first).
 - Done studying for a while? **Actions → destroy → Run workflow**, type `destroy`. Run **deploy** manually to bring everything back.
 
+## A future `prod` stack (not built)
+
+1. `cd infra && pulumi stack init prod`, then copy `Pulumi.dev.yaml` to `Pulumi.prod.yaml` and adjust (tags `stage: prod`,
+   introspection off, real emails, maybe `enableWaf: true`). Resource names include the stack, so dev and prod coexist.
+2. Ideally a **separate AWS account** for prod (AWS Organizations), with its own bootstrap stack and roles.
+3. In GitHub: **Settings → Environments → New environment `prod`**, add **required reviewers** (and optionally a wait
+   timer and "deployment branches: main"). Put `AWS_DEPLOY_ROLE_ARN` for prod in that environment's variables.
+4. A `deploy-prod` job in `deploy.yml` with `needs: deploy`, `environment: prod` and `stack-name: prod`. GitHub pauses it
+   until a reviewer approves, after dev's smoke tests passed.
+5. **The OIDC trust changes:** a job with `environment: prod` gets the token subject `repo:maheshnd/ticketlite:environment:prod`
+   (not `ref:refs/heads/main`), so the prod deploy role must trust that `sub`.
+
 ## If something fails
 - **`Not authorized to perform sts:AssumeRoleWithWebIdentity`**: the token's `sub` didn't match the trust policy. Usual causes: the workflow ran from a branch other than `main` (for deploy or destroy), the repo was renamed (update `githubRepo` in `bootstrap/Pulumi.dev.yaml`, then re-run step 2), or a job uses a GitHub `environment:` (that changes the `sub`).
 - **`Credentials could not be loaded`** or an empty role ARN: the repository variables from step 4 are missing or misspelled.

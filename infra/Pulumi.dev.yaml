@@ -16,6 +16,9 @@ config:
   ticketlite-infra:enableSql: false # Aurora Serverless v2 + sql-reporter
   ticketlite-infra:enableWaf: false # WAF web ACL on CloudFront (monthly ACL + rule cost)
   ticketlite-infra:enableCustomDomain: false # ACM certificate + custom domain on CloudFront (needs DNS)
+  # With enableCustomDomain: true, also set these (a Route 53 hosted zone you control):
+  # ticketlite-infra:customDomain: tickets.example.com
+  # ticketlite-infra:hostedZoneId: Z0123456789ABCDEFGHIJ
   ticketlite-infra:enableProvisionedConcurrency: false # pre-warmed api Lambda (paid while idle)
   # ticketlite-infra:reservedConcurrency: 10   # unset by default: low-quota accounts reject it
 

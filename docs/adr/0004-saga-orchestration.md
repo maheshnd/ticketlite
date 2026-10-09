@@ -19,7 +19,7 @@ A saga can be coordinated two ways:
 
 **Orchestrate** the booking saga with a Step Functions Standard state machine
 (`infra/booking-state-machine.asl.json`). Use **choreography** (EventBridge) only for side effects that nobody
-waits on: confirmation emails, admin notifications, search indexing (M5).
+waits on: confirmation emails, admin notifications, search indexing.
 
 ## Alternatives
 
